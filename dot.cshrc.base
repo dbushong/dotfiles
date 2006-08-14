@@ -1,14 +1,14 @@
 set path=(~/bin /usr/local/bin /usr/local/sbin /sbin /bin \
-	        /usr/sbin /usr/bin /usr/games /usr/X11R6/bin)
+                /usr/sbin /usr/bin /usr/games /usr/X11R6/bin)
 
 umask 002
 
-setenv	EDITOR		  vim
-setenv	VISUAL		  vim
-setenv	PAGER		    less
-setenv	LESS		    -egiMXR
-setenv	LESSCHARSET	latin1
-setenv	HTML_TIDY	  ~/.tidyrc
+setenv  EDITOR      vim
+setenv  VISUAL      vim
+setenv  PAGER       less
+setenv  LESS        -egiMXR
+setenv  LESSCHARSET latin1
+setenv  HTML_TIDY   ~/.tidyrc
 setenv  PERLDOC     -i
 
 if ($?prompt) then
@@ -16,14 +16,14 @@ if ($?prompt) then
 endif
 
 if ($?tcsh) then
-    set prompt="%B%m%b %~ %B[%t]%b " ignoreeof=2
-    set autolist=ambiguous matchbeep=unique histdup=prev
-    set watch=(1 any any) who="%n %B%a%b %l from %M at %t."
-    set history=100 savehist=100
-    set pushdsilent pushdtohome dunique noding filec
-    bindkey ^W backward-delete-word
-    bindkey -k up history-search-backward
-    bindkey -k down history-search-forward
+  set prompt="%B%m%b %~ %B[%t]%b " ignoreeof=2
+  set autolist=ambiguous matchbeep=unique histdup=prev
+  set watch=(1 any any) who="%n %B%a%b %l from %M at %t."
+  set history=100 savehist=100
+  set pushdsilent pushdtohome dunique noding filec
+  bindkey ^W backward-delete-word
+  bindkey -k up history-search-backward
+  bindkey -k down history-search-forward
 endif
 
 alias more less
@@ -38,8 +38,8 @@ alias d 'dirs -v | head'
 alias sc 'source ~/.cshrc'
 
 set cvs_cmds=(add admin annotate checkout commit diff edit \
-   editors export history import init log login logout rdiff \
-   release remove rtag status tag unedit update watch watchers)
+              editors export history import init log login logout rdiff \
+              release remove rtag status tag unedit update watch watchers)
 complete cvs "p/1/($cvs_cmds \
       --help --help-options --help-commands -H)/" \
    "n/-d/d/" \
