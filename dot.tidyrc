@@ -1,0 +1,9 @@
+tidy-mark: no
+wrap: 72
+wrap-php: no
+tab-size: 8
+indent: yes
+indent-spaces: 1
+output-xhtml: yes
+char-encoding: raw
+fix-bad-comments: no

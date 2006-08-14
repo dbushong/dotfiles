@@ -1,0 +1,17 @@
+source .cshrc.base
+
+set path=(~/bin /export/bin /usr/local/bin /usr/local/sbin /sbin /bin \
+	     /usr/sbin /usr/bin /usr/games /usr/X11R6/bin)
+
+setenv  CVSROOT /export/cvs
+setenv  IRCNAME "David Bushong"
+setenv  PGDATA  /usr/local/pgsql/data
+
+alias elm       mutt
+alias typespeed 'env TERM=xterm typespeed'
+alias ci        'ci -zLT'
+alias nslookup  '\nslookup -sil'
+alias nickel    nickle
+alias n         nickle
+
+complete svn 'p/1/`svn-commands`/'

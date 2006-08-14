@@ -1,0 +1,7 @@
+These are base versions of dotfiles.  To "install" them, run the 
+install-dotlinks script in this directory.
+
+Those files that have the .base extension should somehow be sourced from your
+existing dot files.  e.g., in your .cshrc:
+
+source .cshrc.base

@@ -1,0 +1,10 @@
+startup_message off
+term screen
+defscrollback 10000
+deflogin off
+escape ^Oo
+vbell off
+bind h prev
+bind C hardcopy
+hardstatus off
+bell_msg "Bell in window %n^G"

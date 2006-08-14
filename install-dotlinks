@@ -1,0 +1,7 @@
+#!/bin/sh
+
+cd `dirname $0`
+
+for dot in dot.*; do
+  ln -s .dotfiles/$dot ../.`echo $dot | sed 's/^dot.//'`
+done
