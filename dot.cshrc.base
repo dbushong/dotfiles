@@ -27,6 +27,8 @@ if ($?tcsh) then
 endif
 
 alias more less
+alias mroe less
+alias pt perltidy
 alias vi vim
 alias ls ls-F
 alias cd pushd
@@ -34,3 +36,13 @@ alias a 'awk '\''{print $\!^}'\'
 alias up 'cvs -q up -dP'
 alias d 'dirs -v | head'
 alias sc 'source ~/.cshrc'
+
+set cvs_cmds=(add admin annotate checkout commit diff edit \
+   editors export history import init log login logout rdiff \
+   release remove rtag status tag unedit update watch watchers)
+complete cvs "p/1/($cvs_cmds \
+      --help --help-options --help-commands -H)/" \
+   "n/-d/d/" \
+   "N/-d/($cvs_cmds)/" \
+   "n/-H/($cvs_cmds)/"
+unset cvs_cmds

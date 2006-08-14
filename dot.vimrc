@@ -15,7 +15,6 @@ autocmd BufNewFile,BufRead *.php   compiler php
 
 " general settings
 set noshowmode
-set matchpairs+=<:>
 set backspace=indent,eol
 set ignorecase
 set smartcase
