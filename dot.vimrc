@@ -1,6 +1,8 @@
 " turn off some defaults
-let loaded_matchparen=1
-let xml_use_xhtml=1
+let g:loaded_matchparen=1     " don't do matchparen nastiness
+let g:xml_use_xhtml=1         " put /> on singleton tags in HTML
+let g:sql_type_default='psql' " default to PostgreSQL style SQL syntax
+let g:php_sql_query=1         " assume strings in PHP are SQL
 
 " syntax related settings
 syntax on
@@ -31,6 +33,10 @@ set wrapscan
 set tildeop
 set showmatch
 set tags=tags;/
+
+" pesky laptop F1
+map <F1> <Esc>
+map! <F1> <Esc>
 
 " new normal-mode mappings
 nmap <Space> <C-F>
