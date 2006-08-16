@@ -6,8 +6,10 @@ let g:php_sql_query=1         " assume strings in PHP are SQL
 
 " syntax related settings
 syntax on
-set bg=dark
+set background=dark
 highlight clear NonText
+highlight clear Underlined
+highlight link  Underlined CursorLine
 
 " filetype-based settings
 filetype plugin indent on
