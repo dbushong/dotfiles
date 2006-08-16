@@ -7,13 +7,16 @@ let g:php_sql_query=1         " assume strings in PHP are SQL
 " syntax related settings
 syntax on
 set bg=dark
-hi clear NonText
+highlight clear NonText
 
-" load filetype plugins and indent
+" filetype-based settings
 filetype plugin indent on
-autocmd BufNewFile,BufRead *.p[lm] compiler perl
-autocmd BufNewFile,BufRead *.rb    compiler ruby
-autocmd BufNewFile,BufRead *.php   compiler php
+
+" compiler setup
+autocmd BufNewFile,BufRead * if &ft == 'perl'  | compiler perl  | endif
+autocmd BufNewFile,BufRead * if &ft == 'mason' | compiler mason | endif
+autocmd BufNewFile,BufRead * if &ft == 'ruby'  | compiler ruby  | endif
+autocmd BufNewFile,BufRead * if &ft == 'php'   | compiler php   | endif
 
 " general settings
 set noshowmode
@@ -48,4 +51,4 @@ nmap S
 \ endif <CR>
 
 " new commands and command aliases
-com -nargs=? -complete=file E split <args>
+command -nargs=? -complete=file E split <args>
