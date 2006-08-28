@@ -22,6 +22,7 @@ autocmd BufNewFile,BufRead * if &ft == 'php'   | compiler php   | endif
 
 " general settings
 set noshowmode
+set noruler
 set backspace=indent,eol
 set ignorecase
 set smartcase
