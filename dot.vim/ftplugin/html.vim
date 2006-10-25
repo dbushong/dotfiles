@@ -16,16 +16,14 @@ let b:html_mode = 1
 
 if !exists("*HtmlAttribCallback")
 function HtmlAttribCallback( xml_tag )
-    if a:xml_tag ==? "table"
-        return "cellpadding=\"0\" cellspacing=\"0\" border=\"0\""
-    elseif a:xml_tag ==? "link"
-        return "href=\"/site.css\" rel=\"StyleSheet\" type=\"text/css\""
+    if a:xml_tag ==? "link"
+        return "href=\"\" rel=\"stylesheet\" type=\"text/css\""
     elseif a:xml_tag ==? "frame"
         return "name=\"NAME\" src=\"/\" scrolling=\"auto\" noresize"
     elseif a:xml_tag ==? "frameset"
         return "rows=\"0,*\" cols=\"*,0\" border=\"0\""
     elseif a:xml_tag ==? "img"
-        return "src=\"\" width=\"0\" height=\"0\" border=\"0\" alt=\"\""
+        return "src=\"\" width=\"0\" height=\"0\""
     elseif a:xml_tag ==? "a"
         if has("browse")
       " Look up a file to fill the href. Used in local relative file

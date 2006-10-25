@@ -39,6 +39,7 @@ set nobackup
 set wrapscan
 set tildeop
 set showmatch
+set exrc
 set tags=tags;/
 
 " pesky laptop F1
