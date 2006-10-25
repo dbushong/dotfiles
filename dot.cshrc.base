@@ -16,7 +16,7 @@ if ($?prompt) then
 endif
 
 if ($?tcsh) then
-  set prompt="%B%m%b %~ %B[%t]%b " ignoreeof=2
+  set prompt="%B%m%b %~ %B[%t]%b " ignoreeof=1
   set autolist=ambiguous matchbeep=unique histdup=prev
   set watch=(1 any any) who="%n %B%a%b %l from %M at %t."
   set history=100 savehist=100
@@ -24,6 +24,16 @@ if ($?tcsh) then
   bindkey ^W backward-delete-word
   bindkey -k up history-search-backward
   bindkey -k down history-search-forward
+
+  set cvs_cmds=(add admin annotate checkout commit diff edit \
+                editors export history import init log login logout rdiff \
+                release remove rtag status tag unedit update watch watchers)
+  complete cvs "p/1/($cvs_cmds \
+        --help --help-options --help-commands -H)/" \
+    "n/-d/d/" \
+    "N/-d/($cvs_cmds)/" \
+    "n/-H/($cvs_cmds)/"
+  unset cvs_cmds
 endif
 
 alias more less
@@ -36,13 +46,3 @@ alias a 'awk '\''{print $\!^}'\'
 alias up 'cvs -q up -dP'
 alias d 'dirs -v | head'
 alias sc 'source ~/.cshrc'
-
-set cvs_cmds=(add admin annotate checkout commit diff edit \
-              editors export history import init log login logout rdiff \
-              release remove rtag status tag unedit update watch watchers)
-complete cvs "p/1/($cvs_cmds \
-      --help --help-options --help-commands -H)/" \
-   "n/-d/d/" \
-   "N/-d/($cvs_cmds)/" \
-   "n/-H/($cvs_cmds)/"
-unset cvs_cmds
