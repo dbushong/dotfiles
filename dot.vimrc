@@ -47,13 +47,13 @@ map <F1> <Esc>
 map! <F1> <Esc>
 
 " new normal-mode mappings
-nmap <Space> <C-F>
 nmap S
 \ :if exists("syntax_on") <Bar>
 \   syntax off <Bar>
 \ else <Bar>
 \   syntax enable <Bar>
 \ endif <CR>
+nmap <Bslash> :set invpaste<CR>:set paste?<CR>
 
 " new commands and command aliases
 command -nargs=? -complete=file E split <args>
