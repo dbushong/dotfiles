@@ -1,8 +1,8 @@
 " turn off some defaults
-let g:loaded_matchparen=1     " don't do matchparen nastiness
-let g:xml_use_xhtml=1         " put /> on singleton tags in HTML
-let g:sql_type_default='psql' " default to PostgreSQL style SQL syntax
-let g:php_sql_query=1         " assume strings in PHP are SQL
+let g:loaded_matchparen=1      " don't do matchparen nastiness
+let g:xml_use_xhtml=1          " put /> on singleton tags in HTML
+let g:sql_type_default='mysql' " default to MySQL style SQL syntax
+let g:php_sql_query=1          " assume strings in PHP are SQL
 
 " syntax related settings
 syntax on
@@ -33,6 +33,7 @@ set shiftwidth=2
 set tabstop=8
 set softtabstop=2
 set expandtab
+set splitbelow
 set autoindent
 set writebackup
 set nobackup
@@ -54,6 +55,8 @@ nmap S
 \   syntax enable <Bar>
 \ endif <CR>
 nmap <Bslash> :set invpaste<CR>:set paste?<CR>
+nnoremap <C-w>j <C-w>w
+nnoremap <C-w>k <C-w>W
 
 " new commands and command aliases
 command -nargs=? -complete=file E split <args>
