@@ -49,6 +49,7 @@ map <F1> <Esc>
 map! <F1> <Esc>
 
 " new normal-mode mappings
+nmap Y y$
 nmap S
 \ :if exists("syntax_on") <Bar>
 \   syntax off <Bar>
