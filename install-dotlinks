@@ -3,5 +3,5 @@
 cd `dirname $0`
 
 for dot in dot.*; do
-  ln -hvs .dotfiles/$dot ../.`echo $dot | sed 's/^dot.//'`
+  ln -vs .dotfiles/$dot ../.`echo $dot | sed 's/^dot.//'`
 done
