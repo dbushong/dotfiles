@@ -42,7 +42,7 @@
 let s:supportedVimVersion = 700
 
 if version < s:supportedVimVersion
-    echoerr "IndentAnything only supported for Vim " . s:supportedVimVersion . " and up."
+"   echoerr "IndentAnything only supported for Vim " . s:supportedVimVersion . " and up."
     finish
 endif
 
