@@ -55,10 +55,10 @@ for details.
 	need to have selected text in visual mode before you can use this
 	mapping. See |visual-mode| for details.
 
-<LocalLeader>.   or      <LocalLeader>>
+<LocalLeader>>
         Insert - Place a literal '>' without parsing tag.
 
-<LocalLeader>5   or      <LocalLeader>%
+<LocalLeader>%
         Normal or Visual - Jump to the begining or end tag.
 
 <LocalLeader>d

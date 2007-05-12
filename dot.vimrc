@@ -63,3 +63,8 @@ nnoremap <C-w>k <C-w>W
 
 " new commands and command aliases
 command -nargs=? -complete=file E split <args>
+
+" zuul smart quotes
+imap “ "
+imap ” "
+imap ’ '
