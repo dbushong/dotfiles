@@ -448,7 +448,7 @@ function s:DeleteTag( )
         return
     endif
     normal! mz
-    normal \5
+    normal \%
     normal! d%`zd%
 endfunction
 endif
@@ -464,7 +464,7 @@ function s:VisualTag( )
 	return
     endif
     normal! mz
-    normal \5
+    normal \%
     normal! %
     exe "normal! " . visualmode()
     normal! `z
@@ -611,14 +611,11 @@ setlocal matchpairs+=<:>
 " Have this as an escape incase you want a literal '>' not to run the
 " ParseTag function.
 if !exists("g:xml_tag_completion_map")
-    inoremap <buffer> <LocalLeader>. >
     inoremap <buffer> <LocalLeader>> >
 endif
 
 " Jump between the begining and end tags.
-nnoremap <buffer> <LocalLeader>5 :call <SID>TagMatch1()<Cr>
 nnoremap <buffer> <LocalLeader>% :call <SID>TagMatch1()<Cr>
-vnoremap <buffer> <LocalLeader>5 <Esc>:call <SID>VisualTag()<Cr>
 vnoremap <buffer> <LocalLeader>% <Esc>:call <SID>VisualTag()<Cr>
 
 " Wrap selection in XML tag
@@ -700,10 +697,10 @@ for details.
 	need to have selected text in visual mode before you can use this
 	mapping. See |visual-mode| for details.
 
-<LocalLeader>.   or      <LocalLeader>>
+<LocalLeader>>
         Insert - Place a literal '>' without parsing tag.
 
-<LocalLeader>5   or      <LocalLeader>%
+<LocalLeader>%
         Normal or Visual - Jump to the begining or end tag.
 
 <LocalLeader>d
