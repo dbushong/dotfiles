@@ -23,6 +23,11 @@
 "
 "
 
+" requires IndentAnything, which requires 7+
+if version < 700
+  finish
+endif
+
 let IndentAnything_Dbg = 0
 let IndentAnything_Dbg = 1
 
