@@ -1,2 +1,2 @@
 [mysql]
-pager=less -ES
+pager=less -S
