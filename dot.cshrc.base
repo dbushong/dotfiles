@@ -16,7 +16,7 @@ if ($?prompt) then
 endif
 
 if ($?tcsh) then
-  set prompt="%B%m%b %~ %B[%t]%b " ignoreeof=1
+  set prompt="%B%m%b %~ %B[%t]%b " ignoreeof=1 notify
   set autolist=ambiguous matchbeep=unique histdup=prev
   set watch=(1 any any) who="%n %B%a%b %l from %M at %t."
   set history=100 savehist=100
