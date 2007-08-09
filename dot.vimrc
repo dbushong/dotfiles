@@ -4,6 +4,9 @@ let g:xml_use_xhtml=1          " put /> on singleton tags in HTML
 let g:sql_type_default='mysql' " default to MySQL style SQL syntax
 let g:php_sql_query=1          " assume strings in PHP are SQL
 
+" extra libraries
+runtime ftplugin/man.vim
+
 " syntax related settings
 syntax on
 syntax sync minlines=200
