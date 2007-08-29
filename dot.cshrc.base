@@ -34,6 +34,10 @@ if ($?tcsh) then
     "N/-d/($cvs_cmds)/" \
     "n/-H/($cvs_cmds)/"
   unset cvs_cmds
+
+  if ({ sh -c 'which lstags >/dev/null' }) then
+    complete vi 'n/-t/`lstags`/'
+  endif
 endif
 
 alias more less
