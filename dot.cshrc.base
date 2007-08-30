@@ -36,7 +36,7 @@ if ($?tcsh) then
   unset cvs_cmds
 
   if ({ sh -c 'which lstags >/dev/null' }) then
-    complete vi 'n/-t/`lstags`/'
+    complete {vi,vim,more,less} 'n/-t/`lstags`/'
   endif
 endif
 
