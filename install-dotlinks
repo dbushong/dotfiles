@@ -7,3 +7,9 @@ for dot in dot.*; do
 done
 
 lesskey
+
+for file in cshrc zshrc zshenv; do
+  if [ ! -f ../.$file ]; then
+    echo "source ~/.$file.base" > ../.$file
+  fi
+done
