@@ -63,6 +63,8 @@ nmap S
 nmap <Bslash> :set invpaste<CR>:set paste?<CR>
 nnoremap <C-w>j <C-w>w
 nnoremap <C-w>k <C-w>W
+nnoremap <C-]> g<C-]>
+nnoremap <C-w><C-]> <C-w>g<C-]>
 
 " new commands and command aliases
 command -nargs=? -complete=file E split <args>

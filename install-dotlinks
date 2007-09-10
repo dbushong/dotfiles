@@ -3,7 +3,10 @@
 cd `dirname $0`
 
 for dot in dot.*; do
-  ln -vs .dotfiles/$dot ../.`echo $dot | sed 's/^dot.//'`
+  target=../.`echo $dot | sed 's/^dot.//'`
+  if [ ! -e $target ]; then
+    ln -vs .dotfiles/$dot $target
+  fi
 done
 
 lesskey
