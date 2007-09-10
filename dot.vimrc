@@ -5,7 +5,10 @@ let g:sql_type_default='mysql' " default to MySQL style SQL syntax
 let g:php_sql_query=1          " assume strings in PHP are SQL
 
 " extra libraries
-runtime ftplugin/man.vim
+try 
+  runtime ftplugin/man.vim
+catch /E484:/
+endtry
 
 " syntax related settings
 syntax on

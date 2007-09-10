@@ -8,15 +8,17 @@ WATCHFMT='%n %B%a%b %l from %M at %t.'
 
 # Zsh Options
 setopt append_history beep extended_glob no_match notify auto_pushd \
-       auto_remove_slash bg_nice chase_links equals extended_glob \
+       auto_remove_slash bg_nice equals extended_glob \
        hist_ignore_dups pushd_ignore_dups pushd_silent pushd_to_home \
        no_auto_cd pushd_minus
 
 # Commands
 bindkey -e
 stty erase "^H"
-bindkey '\C-P' history-beginning-search-backward
-bindkey '\C-N' history-beginning-search-forward
+bindkey '\e[A' history-beginning-search-backward
+bindkey '\e[B' history-beginning-search-forward
+bindkey '\C-P' up-line-or-history
+bindkey '\C-N' down-line-or-history
 
 # Aliases
 alias more=less
