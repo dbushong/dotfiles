@@ -15,12 +15,7 @@ setopt append_history beep extended_glob no_match notify auto_pushd \
 # Commands
 bindkey -e
 stty erase "^H"
-function history-beginning-search-backward-eol () {
-  zle history-beginning-search-backward
-  zle end-of-line
-}
-zle -N history-beginning-search-backward-eol
-bindkey '\e[A' history-beginning-search-backward-eol
+bindkey '\e[A' history-beginning-search-backward
 bindkey '\C-P' up-line-or-history
 
 # Aliases
