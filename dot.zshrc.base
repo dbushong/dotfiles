@@ -27,7 +27,7 @@ alias ls='ls -F'
 alias a='awk '\''{print $\!^}'\'
 alias up='cvs -q up -dP'
 alias d='dirs -v | head'
-alias sz='source ~/.zshrc'
+alias sz='source ~/.zshenv;source ~/.zshrc'
 
 # Completion
 autoload -U compinit
