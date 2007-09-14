@@ -1,10 +1,10 @@
-EDITOR='vim'
-VISUAL='vim'
-PAGER='less'
-LESS='-egiMXR'
-LESSCHARSET='latin1'
-HTML_TIDY='~/.tidyrc'
-PERLDOC='-i'
+export EDITOR='vim'
+export VISUAL='vim'
+export PAGER='less'
+export LESS='-egiMXR'
+export LESSCHARSET='latin1'
+export HTML_TIDY='~/.tidyrc'
+export PERLDOC='-i'
 
 umask 002
 
