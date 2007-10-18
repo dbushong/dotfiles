@@ -21,6 +21,7 @@ if ($?tcsh) then
   set watch=(1 any any) who="%n %B%a%b %l from %M at %t."
   set history=100 savehist=100
   set pushdsilent pushdtohome dunique noding filec
+  unset autologout
   bindkey ^W backward-delete-word
   bindkey -k up history-search-backward
   bindkey -k down history-search-forward
