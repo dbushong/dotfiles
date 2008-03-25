@@ -4,13 +4,13 @@ HISTSIZE=1000
 SAVEHIST=1000
 PROMPT='%B%m%b %~ %B[%t]%b '
 WATCH=all
-WATCHFMT='%n %B%a%b %l from %M at %t.'
+WATCHFMT='%n %B%a%b tty%l from %M at %t.'
 
 # Zsh Options
 setopt append_history beep extended_glob no_match notify auto_pushd \
        auto_remove_slash bg_nice equals extended_glob magic_equal_subst \
        hist_ignore_dups pushd_ignore_dups pushd_silent pushd_to_home \
-       no_auto_cd pushd_minus no_always_last_prompt
+       no_auto_cd pushd_minus no_always_last_prompt rm_star_silent
 
 # Commands
 bindkey -e
@@ -24,7 +24,7 @@ alias mroe=less
 alias pt=perltidy
 alias vi=vim
 alias ls='ls -F'
-alias a='awk '\''{print $\!^}'\'
+alias a='awk '\''{print \$$1}'\'
 alias up='cvs -q up -dP'
 alias d='dirs -v | head'
 alias sz='source ~/.zshenv;source ~/.zshrc'
