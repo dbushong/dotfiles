@@ -26,6 +26,7 @@ autocmd BufNewFile,BufRead * if &ft == 'perl'  | compiler perl  | endif
 autocmd BufNewFile,BufRead * if &ft == 'mason' | compiler mason | endif
 autocmd BufNewFile,BufRead * if &ft == 'ruby'  | compiler ruby  | endif
 autocmd BufNewFile,BufRead * if &ft == 'php'   | compiler php   | endif
+autocmd BufNewFile,BufRead * if &ft == 'javascript' | compiler javascript | endif
 
 " general settings
 set noshowmode
