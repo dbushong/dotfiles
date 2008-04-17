@@ -13,12 +13,14 @@ endif
 let s:savecpo = &cpo
 set cpo&vim
 
-CompilerSet makeprg=smjs\ -C\ -s\ -w\ -x\ -f\ %
+CompilerSet makeprg=smjs\ -C\ -w\ -x\ -f\ %
 
 CompilerSet errorformat=
+        \%-Z%.%#strict\ warning:\ %p^,
+        \%W%f:%l:\ strict\ warning:\ %m:,
 	\%-Z%.%#:%\\d%\\d%#:\ %p^,
         \%C%.%#,
-	\%A%f:%l:\ %m:
+	\%E%f:%l:\ %m:
 
 " Explanation:
 "   %-Z%.%#:%\\d%\\d%#:\ %p^,  end the multi-line by matching the ...^
