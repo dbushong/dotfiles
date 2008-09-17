@@ -7,7 +7,7 @@ setenv  EDITOR      vim
 setenv  VISUAL      vim
 setenv  PAGER       less
 setenv  LESS        -egiMXR
-setenv  LESSCHARSET latin1
+setenv  LESSCHARSET utf8
 setenv  HTML_TIDY   ~/.tidyrc
 setenv  PERLDOC     -i
 
