@@ -38,6 +38,7 @@ syn match nagiosDef 'define[ \t]\+\(host\|service\|timeperiod\|contact\|command\
 syn match nagiosDef 'define[ \t]\+\(host\|contact\)group'
 syn match nagiosDef 'define[ \t]\+\(service\|host\)dependency'
 syn match nagiosDef 'define[ \t]\+\(service\|host\|hostgroup\)escalation'
+syn match nagiosDef 'define[ \t]\+\(service\|host\)extinfo'
 
 syn match nagiosMacro  '\$CONTACT\(NAME\|ALIAS\|EMAIL\|PAGER\)\$'
 syn match nagiosMacro  '\$HOST\(NAME\|ALIAS\|ADDRESS\|STATE\)\$'
@@ -54,14 +55,14 @@ syn region nagiosDefBody start='{' end='}' contains=nagiosDirective,nagiosMacro,
 
 syn keyword nagiosDirective  active_checks_enabled address alias check_command
 syn keyword nagiosDirective  check_freshness check_period checks_enabled
-syn keyword nagiosDirective  command_line command_name
+syn keyword nagiosDirective  command_line failure_prediction_enabled
 syn keyword nagiosDirective  contact_groups contact_name contactgroup_name
 syn keyword nagiosDirective  dependent_host_name dependent_service_description
 syn keyword nagiosDirective  email event_handler event_handler_enabled
 syn keyword nagiosDirective  execution_failure_criteria first_notification
 syn keyword nagiosDirective  flap_detection_enabled freshness_threshold
 syn keyword nagiosDirective  friday high_flap_threshold host_name
-syn keyword nagiosDirective  host_notification_commands
+syn keyword nagiosDirective  host_notification_commands command_name
 syn keyword nagiosDirective  host_notification_options
 syn keyword nagiosDirective  host_notification_period hostgroup_name
 syn keyword nagiosDirective  is_volatile last_notification

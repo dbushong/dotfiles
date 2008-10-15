@@ -11,4 +11,4 @@ export PERLDOC='-i'
 umask 002
 
 path=(~/bin /usr/local/bin /usr/local/sbin /sbin /bin /usr/sbin /usr/bin \
-      /usr/games /usr/X11R6/bin)
+      /usr/games)
