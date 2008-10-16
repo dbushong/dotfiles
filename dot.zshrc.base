@@ -4,7 +4,7 @@ HISTSIZE=1000
 SAVEHIST=1000
 PROMPT='%B%m%b %~ %B[%t]%b '
 WATCH=all
-WATCHFMT='%n %B%a%b tty%l from %M at %t.'
+WATCHFMT='%n %B%a%b %l from %M at %t.'
 
 # Zsh Options
 setopt append_history beep extended_glob no_match notify auto_pushd \
