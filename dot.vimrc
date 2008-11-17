@@ -51,6 +51,7 @@ set tildeop
 set showmatch
 set exrc
 set tags=tags;/
+set notitle
 
 " pesky laptop F1
 map <F1> <Esc>
