@@ -7,6 +7,8 @@ export LESS='-egiMXR'
 export LESSCHARSET='utf-8'
 export HTML_TIDY='~/.tidyrc'
 export PERLDOC='-i'
+export GREP_OPTIONS='--color=auto --exclude-dir=.svn'
+export GREP_COLORS='mt=1:fn=:ln=:bn=:se='
 
 umask 002
 

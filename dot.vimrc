@@ -66,6 +66,8 @@ nmap S
 \   syntax enable <Bar>
 \ endif <CR>
 nmap <Bslash> :set invpaste<CR>:set paste?<CR>
+nmap <Bslash>{ $? if rWi($C) {kddp>>A;}
+nmap <Bslash>} kddpk<<$xJf(x$F)C;jddk
 nnoremap <C-w>j <C-w>w
 nnoremap <C-w>k <C-w>W
 nnoremap <C-]> g<C-]>
