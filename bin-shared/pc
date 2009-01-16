@@ -1,0 +1,6 @@
+#!/usr/bin/perl -wn
+
+use Data::Dumper;
+
+$| = 1;
+print eval, $@ || "\n";

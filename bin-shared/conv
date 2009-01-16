@@ -1,0 +1,4 @@
+#!/bin/sh
+
+echo "$3o$2i`echo $1|tr a-z A-Z`p" | /usr/bin/dc | tr A-Z a-z
+

@@ -1,0 +1,32 @@
+#!/usr/bin/perl
+
+use Getopt::Std;
+use Digest::MD5 'md5_hex';
+
+getopts('h1', \%opt);
+
+$0 =~ s,.*/,,;
+$| = 1;
+die "usage: $0 [domain]\n" if $opt{h};
+
+if (@ARGV) {
+    $domain = $ARGV[0];
+} else {
+    print 'domain:   ';
+    chomp($domain = <STDIN>);
+}
+$domain = lc($domain);
+
+print 'password: ';
+system(qw(stty -echo));
+chomp($pass = <STDIN>);
+unless ($opt{1}) {
+    print "\nagain:    ";
+    chomp($again = <STDIN>);
+}
+print "\n";
+system(qw(stty echo));
+
+die "$0: password mismatch\n" if !$opt{1} && $pass ne $again;
+
+print(substr(md5_hex("<$domain>$pass"), 0, 8), "\n");

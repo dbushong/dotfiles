@@ -1,0 +1,14 @@
+#!/usr/bin/php -q
+<?php
+  $in = fopen('php://stdin', 'r');
+  while (!feof($in)) {
+    $line = chop(fgets($in));
+    $line = preg_replace('/;$/', '', $line);
+    if (!strlen($line)) continue;
+
+    $str = print_r(eval("return($line);"), true);
+    if (!preg_match('/\n$/', $str)) $str .= "\n";
+    echo $str; @ob_flush(); flush();
+  }
+  fclose($in);
+?>

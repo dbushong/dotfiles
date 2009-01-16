@@ -1,0 +1,4 @@
+#! /usr/bin/perl -n
+
+$sum += $_;
+END { print "$sum\n" }

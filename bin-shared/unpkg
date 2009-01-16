@@ -1,0 +1,97 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Getopt::Std;
+use File::Basename;
+use File::Path;
+
+my $prog = basename($0);
+my %opt;
+getopts('hRM', \%opt);
+
+die <<EOF if $opt{h} || !@ARGV;
+usage: $prog [-R] file [file [...]]
+       -R: don't remove original
+       -M: don't remove __MACOSX dir
+EOF
+
+for my $pkg (@ARGV) {
+  $pkg = "../$pkg" unless $pkg =~ m{^/};
+
+  my $base = basename($pkg);
+  $base =~ s/\.(zip|xpi|jar|tar(\.(gz|bz2))?|t[bg]z|rar)(\.part)?$//i;
+  my $dir = unique_file($base);
+  mkdir($dir);
+  chdir($dir);
+  my $tmp = "$base-tmp-$$-" . time();
+
+  my $rm = ($base !~ /\.part$/);
+
+  if ($pkg =~ /\.zip\.part$/i) {
+    system('cp', $pkg, $tmp);
+    system('zip', '-qF', $tmp);
+    system('unzip', $tmp);
+    unlink($tmp);
+  }
+  elsif ($pkg =~ /\.(zip|xpi|jar)$/i) {
+    $rm = !system('unzip', $pkg);
+  }
+  elsif ($pkg =~ /\.rar\.part$/i) {
+    system('unrar', '-kb', 'x', $pkg);
+  }
+  elsif ($pkg =~ /\.rar$/i) {
+    $rm = !system('unrar', 'x', $pkg);
+  }
+  elsif ($pkg =~ /\.(tgz|tar\.gz)(\.part)?$/i) {
+    system('tar', 'zxf', $pkg);
+  }
+  elsif ($pkg =~ /\.(tbz|tar\.bz2)(\.part)?$/i) {
+    system('tar', 'jxf', $pkg);
+  }
+  elsif ($pkg =~ /\.tar$/i) {
+    system('tar', 'x', $pkg);
+  }
+  else {
+    warn "$prog: unknown archive type: $pkg; skipping\n";
+    chdir('..');
+    rmdir($dir);
+    next;
+  }
+
+  unlink($pkg) if $rm && !$opt{R};
+
+  opendir(my $dh, '.');
+  my @extracted = grep(!/^\.\.?$/, readdir($dh));
+  closedir($dh);
+
+  chdir('..');
+
+  if (@extracted == 1) {
+    my $ex = $extracted[0];
+    if ($ex eq $dir) {
+      rename($dir, $tmp);
+      rename("$tmp/$ex", $ex);
+      rmdir($tmp);
+    }
+    else {
+      rename("$dir/$ex", $ex);
+      rmdir($dir);
+    }
+    $dir = $ex;
+  }
+
+  rmtree("$dir/__MACOSX") if !$opt{M} && -d "$dir/__MACOSX";
+
+  print "$pkg -> $dir\n";
+}
+
+sub unique_file {
+  my ($base) = @_;
+  my $n    = 2;
+  my $name = $base;
+  while (-e $name) {
+    $name = $base . $n++; 
+  }
+  return $name;
+}
