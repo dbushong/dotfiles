@@ -5,3 +5,6 @@ Those files that have the .base extension should somehow be sourced from your
 existing dot files.  e.g., in your .cshrc:
 
 source .cshrc.base
+
+There are also scripts in bin-shared that will be linked to ~/bin/shared, which 
+will be referenced in your path by .[zc]shrc.base

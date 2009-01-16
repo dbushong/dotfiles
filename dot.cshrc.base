@@ -1,4 +1,4 @@
-set path=(~/bin /usr/local/bin /usr/local/sbin /sbin /bin \
+set path=(~/bin ~/bin/shared /usr/local/bin /usr/local/sbin /sbin /bin \
                 /usr/sbin /usr/bin /usr/games /usr/X11R6/bin)
 
 umask 002

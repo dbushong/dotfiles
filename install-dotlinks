@@ -17,3 +17,6 @@ for file in cshrc zshrc zshenv; do
     echo "source ~/.$file.base" > ../.$file
   fi
 done
+
+[ -d ../bin        ] || mkdir ../bin
+[ -d ../bin/shared ] || ln -s ../.dotfiles/bin-shared ../bin/shared

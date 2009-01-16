@@ -1,0 +1,318 @@
+#!/usr/bin/ruby
+
+require 'rubygems'
+require 'getoptlong'
+require 'activeresource'
+require 'tempfile'
+
+KeyFile = "#{ENV['HOME']}/.shdns.key"
+ 
+opts = {}
+GetoptLong.new(
+  [ '--help',   '-h', GetoptLong::NO_ARGUMENT       ],
+  [ '--list',   '-l', GetoptLong::OPTIONAL_ARGUMENT ],
+  [ '--edit',   '-e', GetoptLong::REQUIRED_ARGUMENT ],
+  [ '--create', '-c', GetoptLong::REQUIRED_ARGUMENT ],
+  [ '--key',    '-k', GetoptLong::REQUIRED_ARGUMENT ]
+).each {|k,v| opts[k[2,1].to_sym] = v }
+
+
+def add_dot(domain)
+  domain.sub(/([^.])$/, '\1.')
+end
+
+def fetch_records(domain)
+  domain = add_dot(domain)
+  zone = Zone.find(:first, :params => { :origin => domain }) ||
+    raise("failed to find registered zone for domain '#{domain}'")
+  [zone, Record.find(:all, :params => { :zone_id => zone.id })]
+end
+
+def domain_as_str(domain, zone = nil, records = nil)
+  zone, records = fetch_records(domain) unless zone && records
+  records = records.
+    map  {|r| [ "%5s%10s%64s%s" % 
+      %w(record_type aux name data).map {|k| r.send(k).to_s.downcase }, r ] }.
+    sort {|a,b| a[0] <=> b[0] }.
+    map  {|r| r[1] }
+  data = records.map do |rec|
+    fields = [rec.name, rec.ttl.to_s, rec.record_type, rec.aux.to_s, rec.data,
+              rec.id]
+    fields[3] = '' unless rec.record_type =~ /^(MX|SRV)$/
+    fields[0] = '@' if fields[0] == zone.origin
+    fields.map {|f| f =~ /\s/ ? %{"#{f}"} : f }
+  end
+  idxs   = [0,1,2,3,4]
+  widths = idxs.map { |i| data.map {|r| (r[i]||'').size }.max } \
+    unless data.empty?
+
+  # output string
+  "$ORIGIN #{zone.origin}\n$TTL #{zone.ttl}\n" + data.map do |row| 
+    idxs.map do |i| 
+      (i > 3) ? row[4].to_s : "%-#{widths[i]}s" % row[i] 
+    end.join(' ') + " ;ID:#{row[5]}\n"
+  end.join
+end
+
+def usage
+  $stderr.print <<EOF
+usage: #$0 (-l [domain] | -e domain | -c domain) [-k key]
+       -l: list domains or records in domain
+       -e: edit records in domain
+       -c: create a new domain
+       -k: API key; only needed the first time; then saved in ~/.shdns.key
+EOF
+  exit 1
+end
+
+def parse_records(lines, zone)
+  recs   = []
+  domain = zone.origin
+  ttl    = zone.ttl
+  for line in lines
+    case line
+    when /^\$ORIGIN\s+(\S+)/
+      domain = add_dot($1)
+    when /^\$TTL\s+(\d+)/
+      ttl = $1.to_i
+    when /^\s*#|^\s*$/
+      next
+    else
+      # extract id for modified existing row
+      id = nil
+      if line =~ /(.+)\s+;ID:(\d+)$/
+        line = $1
+        id   = $2.to_i
+      end
+
+      # parse possibly-quoted space-separated line into columns
+      fields = []
+      buffer = ""
+      in_str = false
+      for field in line.split
+        if in_str
+          if field =~ /"$/ && field !~ /\\"$/
+            in_str = false
+            fields << buffer + ' ' + field[0,field.size-1]
+            buffer = ""
+          else
+            buffer += ' ' + field
+          end
+        elsif field =~ /^"/
+          in_str = true
+          buffer = field[1,field.size-1]
+        elsif field =~ /"/
+          raise ParseError, %{" found in a non-string: "#{line}"}
+        else
+          fields << field
+        end
+      end
+
+      # name ttl type aux data
+
+      # default ttl to zone ttl
+      fields[1,0] = [ttl] unless fields[1] =~ /^\d+$/
+      fields[1] = fields[1].to_i
+
+      # normalize field size
+      if fields.size == 4
+        fields[3,0] = [nil]
+      elsif fields.size != 5
+        raise ParseError, %{bad # of fields (#{fields.size}) in line: "#{line}"}
+      end
+
+      # more sanity checks
+      raise ParseError, %{invalid record type "#{fields[2]}"} \
+        unless fields[2] =~ /^(A|CNAME|MX|NS|SRV|TXT|AAAA|PTR)$/
+      raise ParserError, %{aux field "#{fields[3]}" for type "#{fields[2]}"} \
+        if fields[3] && fields[2] !~ /^(SRV|MX)$/
+
+      # substitution
+      fields[0] = domain if fields[0] == '@'
+
+      # record creation
+      rec = Record.new(
+        :record_type => fields[2],
+        :zone_id     => zone.id,
+        :name        => fields[0],
+        :data        => fields[4],
+        :ttl         => fields[1]
+      )
+      rec.aux = fields[3] if fields[3]
+      rec.id  = id        if id
+
+      recs << rec
+    end
+  end
+  [domain, ttl, recs]
+end
+
+def ask_yn(prompt)
+  $stderr.print(prompt + " [Y/n] ")
+  yn = $stdin.gets
+  yn !~ /n/i
+end
+
+def ask_try_again(msg = nil)
+  $stderr.puts msg if msg
+  exit unless ask_yn 'try editing file again?'
+end
+
+def edit_loop(zone, old_recs, tmp)
+  # edit it
+  system(ENV['VISUAL'] || ENV['EDITOR'] || '/usr/bin/editor', tmp.path)
+
+  # parse results
+  begin
+    new_domain, new_ttl, new_recs = 
+      parse_records(IO.readlines(tmp.path), zone)
+  rescue ParseError => msg
+    ask_try_again "parse error: #{msg}"
+    return true
+  end
+
+  # calculate changes
+  dirty = zone_dirty = false
+  if zone.origin != new_domain
+    puts "$ORIGIN: #{zone.origin} -> #{new_domain}" 
+    zone_dirty = dirty = true
+  end
+  if zone.ttl != new_ttl
+    puts "$TTL: #{zone.ttl} -> #{new_ttl}"
+    zone_dirty = dirty = true
+  end
+  to_save = []
+  for rec in new_recs
+    if rec.id
+      old_rec = old_recs.find {|r| r.id == rec.id }
+      unless old_rec
+        ask_try_again "invalid id #{rec.id} not found"
+        return true
+      end
+
+      changes = {}
+      for key in rec.attributes.keys
+        new_val = rec.send(key)
+        old_val = old_rec.send(key)
+        changes[key] = "#{old_val} -> #{new_val}" unless \
+          new_val.to_s == old_val.to_s
+      end
+      unless changes.empty?
+        dirty = true
+        puts("CHANGE: " + changes.inspect) 
+        to_save << rec
+      end
+
+      old_recs.delete(old_rec)
+    else
+      dirty = true
+      to_save << rec
+      puts("ADD: " + rec.attributes.inspect)
+    end
+  end
+
+  unless old_recs.empty?
+    old_recs.each {|rec| puts("DELETE: " + rec.attributes.inspect) }
+    dirty = true
+  end
+
+  unless dirty
+    $stderr.puts "no changes"
+    exit
+  end
+
+  if ask_yn('Commit changes?')
+    # zone updates
+    zone_dirty = false
+    if zone.origin != new_domain
+      zone.origin = new_domain
+      zone_dirty = true
+    end
+    if zone.ttl != new_ttl
+      zone.ttl = new_ttl
+      zone_dirty = true
+    end
+    zone.save if zone_dirty
+
+    # record deletes
+    old_recs.each {|rec| rec.destroy}
+
+    # record adds & changes
+    to_save.each {|rec| rec.save }
+
+    $stderr.puts "changes saved"
+  elsif ask_yn('Edit file again?')
+    return true
+  end
+
+  false
+end
+
+if opts[:h] || !(!opts[:l].nil? ^ !opts[:c].nil? ^ !opts[:e].nil?)
+  usage
+end
+
+if opts[:k]
+  File.open(KeyFile, 'w') {|f| f.write(opts[:k]) } 
+  File.chmod(0600, KeyFile)
+end
+
+unless File.exists? KeyFile
+  $stderr.puts "you must specify -k and your api-key the first time"
+  exit 1
+end
+
+API_PASSWORD = IO.read KeyFile
+
+class ParseError < RuntimeError; end
+
+class Zone < ActiveResource::Base
+  self.site = "https://#{API_PASSWORD}@api.slicehost.com/"
+end
+
+class Record < ActiveResource::Base
+  self.site = "https://#{API_PASSWORD}@api.slicehost.com/"
+end
+
+if opts[:l]
+  # spew current value to stdout
+  if opts[:l].empty?
+    for zone in Zone.find(:all).sort {|a,b| a.origin <=> b.origin }
+      puts "[#{zone.id}] #{zone.ttl}\t#{zone.origin}"
+    end
+  else
+    print domain_as_str(opts[:l])
+  end
+elsif opts[:e]
+  old_domain = add_dot(opts[:e])
+  # write out editable version
+  zone, old_recs = fetch_records(old_domain)
+  tmp = Tempfile.new(File.basename($0))
+  tmp.print(domain_as_str(old_domain, zone, old_recs))
+  tmp.close
+  
+  loop { break unless edit_loop(zone, old_recs, tmp) }
+elsif opts[:c]
+  domain = add_dot(opts[:c])
+  zone = Zone.new(:origin => domain)
+  zone.save
+  puts "created #{domain} id #{zone.id}"
+end
+
+__END__
+
+$ORIGIN example.com.
+$TTL 3600
+gimli        3600  A        1.2.3.4
+mail         3600  A        1.2.3.4
+@            3600  A        1.2.3.4
+@            86400 MX    10 mail
+@            86400 MX    20 mail.other.net.
+@            86400 MX    30 mail.ya.net.
+@            86400 NS       ns1.slicehost.net.
+@            86400 NS       ns2.slicehost.net.
+@            86400 NS       ns3.slicehost.net.
+@            86400 TXT      "v=spf1 ip4:1.2.3.4 -all"
+irc          86400 CNAME    gimli
+www          86400 CNAME    gimli
+*.dev        86400 CNAME    gimli
