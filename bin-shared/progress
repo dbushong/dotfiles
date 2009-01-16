@@ -1,0 +1,57 @@
+#!/usr/bin/perl
+
+use Curses;
+
+die "usage:  progress filename finished-size\n" if @ARGV != 2;
+
+$file = $ARGV[0]; $size = $ARGV[1];
+
+#
+#filename --  234/1234 bytes -- 45%
+#             ^$bytes            ^$percent
+$bytelen = length($size);
+$fname = substr($file, 0, 61 - 2*$bytelen);
+$bytes = length($fname) + 4;
+$percent = $bytes + $bytelen * 2 + 11;
+
+$stime = time;
+$ssize = (stat($file))[7];
+initscr;
+clear;
+addstr("$fname -- " . ' 'x($bytelen) . "/$size bytes --   %\n[");
+move(1, 79);
+addch(']');
+while (1) {
+    $cursize = (stat($file))[7] || die "progress: couldn't stat $file\n";
+    if ($cursize >= $size) {
+	endwin;
+	exit;
+    }
+    move(0, $bytes);
+    addstr(sprintf("%${bytelen}d", $cursize));
+    move(0, $percent);
+    addstr(sprintf("%2d", int($cursize / $size * 100)));
+    $numhashes = int($cursize / $size * 78);
+    move(1, 1);
+    addstr('#'x$numhashes);
+    move(2, 0);
+    clrtoeol;
+    unless (time - $stime) {
+	addstr("--");
+    } elsif ($cursize - $ssize) {
+	$rate = ($cursize - $ssize) / (time - $stime);
+        $trem = int(($size - $cursize)/$rate + 0.5);
+        $min = int($trem / 60); $sec = $trem % 60;
+        addstr(sprintf("%2d:%02d left", $min, $sec));
+	if ($rate > 1024) { $rate /= 1024; $pre = "K" }
+	if ($rate > 1024) { $rate /= 1024; $pre = "M" }
+	$bps = $rate;
+	$rate = sprintf("%.2f", $rate);
+	addstr(" -- $rate ${pre}B/sec");
+	$bps *= 8;
+	$bps = sprintf("%.2f", $bps);
+	addstr(" -- $bps ${pre}bits/sec");
+    }
+    refresh;
+    sleep(2);
+}

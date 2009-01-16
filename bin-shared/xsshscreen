@@ -1,0 +1,4 @@
+#!/bin/sh
+
+host=`basename $0`
+(exec gnome-terminal -t "ssh $host" --geometry 80x45 -e "ssh -t -C $host screen -D -R" &)

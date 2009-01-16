@@ -1,0 +1,7 @@
+#!/bin/sh
+
+FILE=$HOME/.paste/`date +%Y-%m-%d-%H:%M:%S`
+
+mkdir $HOME/.paste 2>/dev/null
+cat > $FILE
+echo $FILE

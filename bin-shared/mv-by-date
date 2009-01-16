@@ -1,0 +1,74 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Image::ExifTool 'ImageInfo';
+use Time::Local;
+use POSIX 'strftime';
+use Getopt::Std;
+use File::Basename;
+use File::Path;
+use File::Copy;
+
+my %opt;
+my $prog = basename $0;
+getopts('hnvd:fk:E', \%opt);
+die <<EOF if $opt{h} || !@ARGV || ($opt{k} && $opt{k} !~ /^\d+$/);
+usage: $prog [-E] [-n | -v] [-d output-dir] [-f] [-k #] file [file2 [...]]
+       -E: don't use EXIF data even if available
+       -n: don't actually move (implies -v)
+       -v: verbose
+       -d: output dir (default: current dir)
+       -k: TRY to keep # levels of source directories when moving;
+           e.g.: $prog -k 1 foo/bar/baz.jpg yadda.jpg
+           might produce: 2008/05/03/bar/baz.jpg & 2008/05/07/yadda.jpg
+       -f: force move; overwrite without asking; default is to skip and warn
+EOF
+$opt{v} = 1 if $opt{n};
+$opt{d} = '.' unless exists $opt{d};
+
+# 'DateTimeOriginal' => '2008:09:04 12:47:56',
+for my $file (@ARGV) {
+  unless (-e $file) {
+    warn "$prog: $file does not exist\n";
+    next;
+  }
+
+  next if -d $file;
+
+  my $ts;
+  if ($opt{E}) {
+    $ts = (stat($file))[9];
+  }
+  else {
+    my $info = ImageInfo($file);
+    my ($y, $mo, $d, $h, $mi, $s) = split(/[:\s]+/,
+      $info->{DateTimeOriginal} || $info->{FileModifyDate});
+    $ts = timelocal($s, $mi, $h, $d, $mo - 1, $y - 1900);
+  }
+
+  my $path = $opt{d} . '/' . strftime('%Y/%m/%d', localtime($ts));
+
+  my $dest_file;
+  if ($opt{k}) {
+    my @parts = split('/', $file);
+    shift(@parts) while @parts >= $opt{k};
+    $dest_file = join('/', $file);
+  }
+  else {
+    $dest_file = basename($file);
+  }
+  my $dest = "$path/" . $dest_file;
+
+  print "$file -> $dest\n" if $opt{v};
+
+  if (-e $dest && !$opt{f}) {
+    print STDERR "$dest already exists; skipping move\n";
+    next;
+  }
+
+  next if $opt{n};
+
+  mkpath(dirname($dest));
+  move($file, $dest) || warn $!;
+}
