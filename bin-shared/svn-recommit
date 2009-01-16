@@ -1,0 +1,10 @@
+#!/bin/sh
+
+MSG=svn-commit.tmp
+
+if [ ! -f $MSG ]; then
+  echo "Can't find $MSG"
+  exit 1
+fi
+
+svn up && svn ci -F $MSG && rm $MSG
