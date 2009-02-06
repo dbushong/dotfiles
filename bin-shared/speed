@@ -22,7 +22,7 @@ EOU
 
 $opt{s} ||= 10;
 
-my @units = qw(bytes KB MB GB TB);
+my @units = qw(bytes KiB MiB GiB TiB);
 splice(@units, 1) if $opt{H};
 
 my %tunits = (
