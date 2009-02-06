@@ -1,0 +1,103 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Getopt::Std;
+use File::Basename;
+use POSIX 'strftime';
+
+my $prog = basename($0);
+my %opt;
+getopts('hs:Dt:H', \%opt);
+usage() if $opt{h} || @ARGV != 1;
+sub usage {
+  die <<EOU;
+usage: $prog [-s secs] [-D] [-t target-size] [-H] file-or-directory
+       -s: number of seconds to wait for data gathering; default: 10
+       -D: for a directory, don't do an initial du before the 2 measurements
+       -H: use bytes and secs for all output values (default: human readable)
+       -t: specify a target size in bytes and report estimated completion time
+EOU
+}
+
+$opt{s} ||= 10;
+
+my @units = qw(bytes KB MB GB TB);
+splice(@units, 1) if $opt{H};
+
+my %tunits = (
+  1        => 's',
+  60       => 'm',
+  60*60    => 'h',
+  60*60*24 => 'd',
+);
+%tunits = (1 => 's') if $opt{H};
+
+my $target = $ARGV[0];
+
+my ($first, $second);
+if (-f $target) {
+  $first  = -s $target;  
+  sleep($opt{s});
+  $second = -s $target;
+}
+elsif (-d $target) {
+  my $cmd = "du -sb \Q$target";
+  `$cmd` unless $opt{D};
+  $first  = `$cmd`;
+  sleep($opt{s});
+  $second = `$cmd`;
+  $$_ =~ s/\s.*// for \($first, $second);
+}
+else {
+  die "$prog: no such file or directory '$target'\n";
+}
+
+my $bytes = $second - $first;
+my $speed = $bytes / $opt{s};
+
+my $speed_str = size_units($speed, '%.1f %s/s');
+print "$bytes bytes in $opt{s}s: $speed_str\n";
+
+if ($opt{t}) {
+  if ($bytes > $opt{t}) {
+    die "$prog: current ($bytes) > target ($opt{t}); should be finished\n";
+  }
+  elsif ($opt{t} == $bytes) {
+    print "$bytes/$opt{t}: 100%\n";
+  }
+  my $perc = $bytes / $opt{t};
+
+  my $left = $opt{t} - $bytes;
+
+  printf("%.1f%% complete; %s remaining; finished in %s at %s\n", 
+    $perc * 100,
+    size_units($left, '%.1f %s'), 
+    time_units($left / $speed),
+    strftime('%Y-%m-%d %H:%M:%S', localtime(time() + $left / $speed))
+  );
+}
+
+sub size_units {
+  my ($num, $fmt) = @_;
+
+  for (my $i = $#units; $i >= 0; $i--) {
+    my $n = 1024 ** $i;
+    return sprintf($fmt, $num / $n, $units[$i]) if $num >= $n;
+  }
+  sprintf($fmt, 0, $units[0]);
+}
+
+sub time_units {
+  my ($secs) = @_;
+
+  my $str;
+  for my $div (sort { $b <=> $a } keys(%tunits)) {
+    if ($secs >= $div) {
+      $str .= int($secs/$div) . $tunits{$div};
+      $secs %= $div;
+    }
+  }
+  $str = '0s' unless defined $str;
+  $str;
+}
