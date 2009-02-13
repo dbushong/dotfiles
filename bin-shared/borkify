@@ -1,11 +1,11 @@
 #!/usr/bin/perl
 
-use utf8;
-use Getopt::Std;
 use strict;
 use warnings;
-
-binmode(STDOUT, ':utf8');
+use utf8;
+use open ':locale';
+use Getopt::Std;
+use File::Basename;
 
 my %chars = (
   'a'    => 'ªàáâãäåāăąǎǟǡả',
@@ -124,12 +124,33 @@ my %chars = (
   '/'    => '⁄',
 );
 
-my $re = join('|', map { quotemeta } sort { length($b) <=> length($a) }
-  keys %chars);
+my $prog = basename($0);
+my %opt;
+getopts('hr', \%opt);
+die <<EOF if $opt{h};
+usage: $prog [-r] [file [...]]
+       -r: reverse (un-)borkify text
+EOF
 
 $| = 1;
 
-while (<>) {
-  s/$re/substr($chars{$&}, rand(length($chars{$&})), 1)/ge;
-  print;
+if ($opt{r}) {
+  my %rev;
+  while (my ($c, $b) = each(%chars)) {
+    $rev{$_} = $c for split(//, $b);
+  }
+  my $re = join('|', map { quotemeta } keys %rev);
+  while (<>) {
+    s/$re/$rev{$&}/geo;
+    print;
+  }
+}
+else {
+  my $re = join('|', map { quotemeta } sort { length($b) <=> length($a) }
+    keys %chars);
+
+  while (<>) {
+    s/$re/substr($chars{$&}, rand(length($chars{$&})), 1)/geo;
+    print;
+  }
 }
