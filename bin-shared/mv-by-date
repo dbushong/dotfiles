@@ -72,12 +72,10 @@ sub mv_file {
 
   my $path = "$dest/" . strftime($opt{d}, localtime($ts));
 
-  unless ($single) {
-    my $dir  = $file;
-    my $idir = dirname($item);
-    $dir =~ s#^\Q$idir/##;
-    $path .= "/$dir";
-  }
+  my $suff = $file;
+  my $idir = dirname($item);
+  $suff =~ s#^\Q$idir/##;
+  $path .= "/$suff";
 
   print "$file -> $path\n" if $opt{v};
 
