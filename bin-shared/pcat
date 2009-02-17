@@ -29,8 +29,10 @@ EOF
 # set options
 $opt{p} ||= $def_procs;
 
-my @cmd   = @ARGV;
+my @cmd = @ARGV;
 
+# start up parallel procs
+# TODO: only start up on demand?
 my $win = '';
 my %procs = map { 
   open(my $fh, '|-', @cmd);  
@@ -39,6 +41,7 @@ my %procs = map {
   fileno($fh) => $fh
 } 1..$opt{p};
 
+# loop over STDIN, passing each line to next available child
 LINE: while (1) {
   my $wout;
   my $n = select(undef, $wout=$win, undef, undef);
@@ -52,4 +55,5 @@ LINE: while (1) {
   }
 }
 
+# close filehandles to children, ending processes
 close($_) for values %procs;
