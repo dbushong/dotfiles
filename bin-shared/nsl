@@ -1,0 +1,42 @@
+#!/usr/bin/perl
+#
+# nsl - converts IP addresses into names inline in files specified or piped
+#       STDIN;
+#	with -p also converts :port after the IP
+#
+
+use Socket;
+use Getopt::Std;
+
+$| = 1;
+$0 =~ s,.*/,,;
+%portName = ();
+getopts('hp', \%opt);
+
+die "usage: $0 [-p] [ file ... ]\n\t-p: also give port names\n" if $opt{h};
+
+while (<>) {
+    s/\b((?:\d{1,3}\.){3}\d{1,3})(?:[:#](\d+))?\b/&ipToName($1).&portToName($2)/ge;
+    print;
+}
+
+sub ipToName {
+    return gethostbyaddr(inet_aton($_[0]), AF_INET) || $_[0];
+}
+
+sub portToName {
+    my ($port) = @_;
+
+    if (defined $port) {
+	if ($opt{p}) {
+	    $portName{$port} = (getservbyport($port, 'tcp')
+		|| getservbyport($port, 'udp') || $port) 
+		    unless exists $portName{$port};
+	    return ":$portName{$port}";
+	} else {
+	    return ":$port";
+	}
+    } else {
+	return '';
+    }
+}
