@@ -1,0 +1,55 @@
+#!/usr/bin/perl
+#
+# pcat -- parallel cat
+#
+# takes stdin and pipes it in parallel to multiple procs
+#
+
+use strict;
+use warnings;
+use File::Temp;
+use Getopt::Std;
+use File::Basename;
+
+# usage vars
+my $prog      = basename($0);
+my $def_procs = 4;
+
+# usage
+my %opt;
+getopts('hp:', \%opt);
+die <<EOF if $opt{h} || !@ARGV;
+usage: $prog [-p num-procs] cmd [cmd-arguments]
+       cmd: stdin line-level parallelism: cmd and any arguments given at the 
+            end of the command line are invoked in parallel, passed some 
+            subset of standard input lines
+       -p: specify number of parallel processes (default: $def_procs)
+EOF
+
+# set options
+$opt{p} ||= $def_procs;
+
+my @cmd   = @ARGV;
+
+my $win = '';
+my %procs = map { 
+  open(my $fh, '|-', @cmd);  
+  my $no = fileno($fh);
+  vec($win, $no, 1) = 1;
+  fileno($fh) => $fh
+} 1..$opt{p};
+
+LINE: while (1) {
+  my $wout;
+  my $n = select(undef, $wout=$win, undef, undef);
+  die "$prog: select() failed with no writeable handles found\n" unless $n;
+  for my $no (keys(%procs)) {
+    if (vec($wout, $no, 1)) {
+      my $line = <STDIN>;
+      last LINE unless defined $line;
+      syswrite($procs{$no}, $line);
+    }
+  }
+}
+
+close($_) for values %procs;
