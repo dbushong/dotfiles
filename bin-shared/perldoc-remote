@@ -1,0 +1,61 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Getopt::Std;
+use File::Basename;
+use XML::Twig;
+use LWP::Simple;
+use File::Temp;
+use CGI '-oldstyle_urls';
+
+my $prog = basename($0);
+my %opt;
+getopts('h', \%opt);
+usage() if $opt{h} || @ARGV != 1;
+sub usage {
+  die <<EOU;
+usage: $prog Some::Module
+EOU
+}
+
+my $mod_name = $ARGV[0];
+
+my $url = 'http://search.cpan.org/search?' . CGI->new({
+  query  => $mod_name,
+  mode   => 'module',
+  format => 'xml',
+})->query_string;
+
+my $xml = get($url) || die "$prog: couldn't fetch $url\n";
+
+my $link;
+
+my $t = XML::Twig->new(twig_roots => {
+  module => sub {
+    my ($t, $mod) = @_;
+    if ($mod->first_child_text('name') eq $mod_name) {
+      $link = $mod->first_child_text('link');
+      $t->finish_now;
+    }
+  },
+});
+eval { $t->parse($xml); } || die "$prog: failed to parse xml from: $url ($@)\n";
+
+$link =~ m{^http://search\.cpan\.org/~([^/]+)(/.+)} 
+  || die "$prog: no match for $mod_name\n";
+
+my ($user, $path) = ($1, $2);
+
+$url = "http://cpansearch.perl.org/src/\U$user\E$path";
+
+my $dir  = File::Temp::tempdir(CLEANUP => 1);
+my $file = "$dir/$mod_name.pm";
+my $code = mirror($url, $file);
+unless ($code == 200) {
+  unlink($file);
+  die "$prog: fetching $url failed with code $code";
+}
+
+system('perldoc', '-F', $file);
+unlink($file);
