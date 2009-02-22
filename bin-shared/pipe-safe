@@ -1,0 +1,66 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Getopt::Std;
+use File::Temp ':POSIX';
+
+my %opt;
+getopts('ho:qn', \%opt);
+die <<EOF if $opt{h} || !@ARGV;
+usage: $0 [-o output-file] [-q] [-n] 'first-cmd with args' ['second-cmd' [...]]
+       -o: instead of passing through the output, send it to a tmpfile, then
+           if everything exits successfully, rename the file
+       -q: quiet: don't say which cmd failed
+       -n: print what the cmd line would be, but don't run it
+EOF
+
+my @cmds     = @ARGV;
+my $last_idx = @cmds - 2;
+my @errs = map { scalar tmpnam() } 0..$last_idx;
+
+my $cmd_line = join(' | ', 
+  (map { "($cmds[$_] || echo \$? > $errs[$_])" } 0..$last_idx), $cmds[-1]);
+
+my $tmp_out;
+if ($opt{o}) {
+  $tmp_out = tmpnam();
+  $cmd_line .= " > $tmp_out";
+}
+
+if ($opt{n}) {
+  print "$cmd_line\n";
+  exit;
+}
+
+system($cmd_line);
+my $last_st = $?;
+
+my $fail_status;
+for my $i (0..$last_idx) {
+  my $err = $errs[$i];
+  next unless -e $err;
+  open(my $fh, '<', $err);
+  my $st = <$fh>;
+  close($fh);
+  gripe($i, $st);
+}
+
+gripe(-1, $last_st) if $last_st;
+
+if ($fail_status) {
+  unlink @errs;
+  unlink $tmp_out if $opt{o};
+  exit $fail_status;
+}
+
+rename($tmp_out, $opt{o}) if $opt{o};
+exit 0;
+
+sub gripe {
+  my ($i, $st) = @_;
+  chomp($st);
+  print STDERR "$0: command '$cmds[$i]' exited with status $st\n" 
+    unless $opt{q};
+  $fail_status = $st;
+}
