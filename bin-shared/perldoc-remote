@@ -42,8 +42,8 @@ my $t = XML::Twig->new(twig_roots => {
 });
 eval { $t->parse($xml); } || die "$prog: failed to parse xml from: $url ($@)\n";
 
-$link =~ m{^http://search\.cpan\.org/~([^/]+)(/.+)} 
-  || die "$prog: no match for $mod_name\n";
+$link =~ m{^http://search\.cpan\.org/~([^/]+)(/.+\.pm)$} 
+  || die "$prog: no page for $mod_name\n";
 
 my ($user, $path) = ($1, $2);
 
