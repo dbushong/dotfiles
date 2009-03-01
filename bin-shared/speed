@@ -6,21 +6,27 @@ use Getopt::Std;
 use File::Basename;
 use POSIX 'strftime';
 
+$| = 1;
+
 my $prog = basename($0);
 my %opt;
-getopts('hs:Dt:H', \%opt);
+getopts('hs:DRt:H1', \%opt);
 usage() if $opt{h} || @ARGV != 1;
 sub usage {
   die <<EOU;
-usage: $prog [-s secs] [-D] [-t target-size] [-H] file-or-directory
-       -s: number of seconds to wait for data gathering; default: 10
+usage: $prog [-1] [-s secs] [-D] [-R] [-t target-size] [-H] file-or-directory
+       -1: just run once; default: continuous updates
+       -s: number of seconds to wait for data gathering; default: 2
        -D: for a directory, don't do an initial du before the 2 measurements
+       -R: don't repaint the line; just reprint every interval
        -H: use bytes and secs for all output values (default: human readable)
-       -t: specify a target size in bytes and report estimated completion time
+       -t: specify a target size in bytes and report estimated completion time;
+           implies -R
 EOU
 }
 
-$opt{s} ||= 10;
+$opt{s} ||= 2;
+$opt{R} = 1 if $opt{t};
 
 my @units = qw(bytes KiB MiB GiB TiB);
 splice(@units, 1) if $opt{H};
@@ -35,53 +41,60 @@ my %tunits = (
 
 my $target = $ARGV[0];
 
-my ($first, $second);
-if (-f $target) {
-  $first  = -s $target;  
-  sleep($opt{s});
-  $second = -s $target;
+my $dir;
+if (-d $target) {
+  $dir = "du -sb \Q$target";
+  `$dir` unless $opt{D};
 }
-elsif (-d $target) {
-  my $cmd = "du -sb \Q$target";
-  `$cmd` unless $opt{D};
-  $first  = `$cmd`;
-  sleep($opt{s});
-  $second = `$cmd`;
-  $$_ =~ s/\s.*// for \($first, $second);
-}
-else {
+elsif (!-f $target) {
   die "$prog: no such file or directory '$target'\n";
 }
 
-my $bytes = $second - $first;
-my $speed = $bytes / $opt{s};
 
-my $speed_str = size_units($speed, '%.1f %s/s');
-print "$bytes bytes in $opt{s}s: $speed_str\n";
+my $first = get_size();
+my $start = time();
 
-if ($opt{t}) {
-  if ($second > $opt{t}) {
-    die "$prog: current ($second) > target ($opt{t}); should be finished\n";
+while (1) {
+  sleep($opt{s});
+  my $cur = get_size();
+  my $now = time();
+
+  my $bytes = $cur - $first;
+  my $elap  = $now - $start;
+  my $speed = $bytes / $elap;
+
+  my $speed_str = size_units($speed, '%.1f %s/s');
+  print "          \r" unless $opt{R};
+  print "@{[ size_units($bytes) ]} in @{[ time_units($elap) ]}: $speed_str";
+  print "\n" if $opt{R};
+
+  if ($opt{t}) {
+    if ($cur > $opt{t}) {
+      die "$prog: current ($cur) > target ($opt{t}); should be finished\n";
+    }
+    elsif ($opt{t} == $cur) {
+      print "100% complete\n";
+      exit;
+    }
+
+    my $left = $opt{t} - $cur;
+    my $secs = $left / $speed;
+
+    printf("%.1f%% complete; %s remaining; finished in %s at %s\n", 
+      $cur / $opt{t} * 100,
+      size_units($left, '%.1f %s'), 
+      time_units($secs),
+      strftime('%Y-%m-%d %H:%M:%S', localtime($now + $secs))
+    );
   }
-  elsif ($opt{t} == $second) {
-    print "100% complete\n";
-    exit;
-  }
 
-  my $left = $opt{t} - $second;
-  my $secs = $left / $speed;
-
-  printf("%.1f%% complete; %s remaining; finished in %s at %s\n", 
-    $second / $opt{t} * 100,
-    size_units($left, '%.1f %s'), 
-    time_units($secs),
-    strftime('%Y-%m-%d %H:%M:%S', localtime(time() + $secs))
-  );
+  last if $opt{1};
 }
 
 sub size_units {
   my ($num, $fmt) = @_;
 
+  $fmt ||= '%.1f%s';
   for (my $i = $#units; $i >= 0; $i--) {
     my $n = 1024 ** $i;
     return sprintf($fmt, $num / $n, $units[$i]) if $num >= $n;
@@ -101,4 +114,11 @@ sub time_units {
   }
   $str = '0s' unless defined $str;
   $str;
+}
+
+sub get_size {
+  return -s $target unless $dir;
+  my $s = `$dir`;
+  $s =~ s/\s.*//;
+  $s;
 }
