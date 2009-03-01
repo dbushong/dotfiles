@@ -20,13 +20,12 @@ for my $pkg (@ARGV) {
   $pkg = "../$pkg" unless $pkg =~ m{^/};
 
   my $base = basename($pkg);
+  my $rm = ($base !~ /\.part$/);
   $base =~ s/\.(zip|xpi|jar|tar(\.(gz|bz2))?|t[bg]z|rar)(\.part)?$//i;
   my $dir = unique_file($base);
   mkdir($dir);
   chdir($dir);
   my $tmp = "$base-tmp-$$-" . time();
-
-  my $rm = ($base !~ /\.part$/);
 
   if ($pkg =~ /\.zip\.part$/i) {
     system('cp', $pkg, $tmp);
