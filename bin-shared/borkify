@@ -63,7 +63,7 @@ my %chars = (
   'N'    => 'ÑŃŅŇṄṈИЙ',
   'Ni'   => '№',
   'O'    => 'ŌΌÒÓÔÕÖØỎѲϴΘƠǑŐ',
-  'P'    => 'ÞṔṖ',
+  'P'    => 'Ṗ',
   'Q'    => 'ϘǬǪ',
   'R'    => 'ṞṘЯƦŔŖŘ',
   'S'    => '§∮∫ṠŚŜŞŠ',
@@ -124,33 +124,42 @@ my %chars = (
   '/'    => '⁄',
 );
 
-my $prog = basename($0);
-my %opt;
-getopts('hr', \%opt);
-die <<EOF if $opt{h};
-usage: $prog [-r] [file [...]]
-       -r: reverse (un-)borkify text
+
+my %rev;
+while (my ($c, $b) = each(%chars)) {
+  $rev{$_} = $c for split(//, $b);
+}
+my $unbork_re = join('|', map { quotemeta } keys %rev);
+my $bork_re   = join('|', map { quotemeta } sort { length($b) <=> length($a) }
+                                            keys %chars);
+
+main() if __FILE__  eq $0;
+
+sub main {
+  my $prog = basename($0);
+  my %opt;
+  getopts('hr', \%opt);
+  die <<EOF if $opt{h};
+  usage: $prog [-r] [file [...]]
+        -r: reverse (un-)borkify text
 EOF
 
-$| = 1;
-
-if ($opt{r}) {
-  my %rev;
-  while (my ($c, $b) = each(%chars)) {
-    $rev{$_} = $c for split(//, $b);
-  }
-  my $re = join('|', map { quotemeta } keys %rev);
+  $| = 1;
   while (<>) {
-    s/$re/$rev{$&}/geo;
-    print;
+    print($opt{r} ? unborkify($_) : borkify($_));
   }
 }
-else {
-  my $re = join('|', map { quotemeta } sort { length($b) <=> length($a) }
-    keys %chars);
 
-  while (<>) {
-    s/$re/substr($chars{$&}, rand(length($chars{$&})), 1)/geo;
-    print;
-  }
+sub unborkify {
+  my ($line) = @_;
+  $line =~ s/$unbork_re/$rev{$&}/geo;
+  $line;
 }
+
+sub borkify {
+  my ($line) = @_;
+  $line =~ s/$bork_re/substr($chars{$&}, rand(length($chars{$&})), 1)/geo;
+  $line;
+}
+
+1;

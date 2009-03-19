@@ -2,7 +2,7 @@
 let g:loaded_matchparen=1      " don't do matchparen nastiness
 let g:xml_use_xhtml=1          " put /> on singleton tags in HTML
 let g:sql_type_default='mysql' " default to MySQL style SQL syntax
-let g:php_sql_query=1          " assume strings in PHP are SQL
+" let g:php_sql_query=1          " assume strings in PHP are SQL
 
 " extra libraries
 try 

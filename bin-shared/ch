@@ -61,5 +61,6 @@ usage: $prog mod <mode> file [...]
           grp <group> file [...]
           own <user>[:<group>] file [...]
           more than one cmd may be given             
+          mode must be numeric
 EOU
 }
