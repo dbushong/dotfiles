@@ -8,12 +8,13 @@ use File::Path;
 
 my $prog = basename($0);
 my %opt;
-getopts('hRM', \%opt);
+getopts('hRMU', \%opt);
 
 die <<EOF if $opt{h} || !@ARGV;
 usage: $prog [-R] file [file [...]]
        -R: don't remove original
        -M: don't remove __MACOSX dir
+       -U: don't ignore .url file at the top-level
 EOF
 
 for my $pkg (@ARGV) {
@@ -21,7 +22,7 @@ for my $pkg (@ARGV) {
 
   my $base = basename($pkg);
   my $rm = ($base !~ /\.part$/);
-  $base =~ s/\.(zip|xpi|jar|tar(\.(gz|bz2))?|t[bg]z|rar)(\.part)?$//i;
+  $base =~ s/\.(zip|xpi|jar|7z|tar(\.(gz|bz2))?|t[bg]z|rar)(\.part)?$//i;
   my $dir = unique_file($base);
   mkdir($dir);
   chdir($dir);
@@ -41,6 +42,9 @@ for my $pkg (@ARGV) {
   }
   elsif ($pkg =~ /\.rar$/i) {
     $rm = !system('unrar', 'x', $pkg);
+  }
+  elsif ($pkg =~ /\.7z$/i) {
+    system('7zr', 'x', $pkg);
   }
   elsif ($pkg =~ /\.(tgz|tar\.gz)(\.part)?$/i) {
     system('tar', 'zxf', $pkg);
@@ -63,6 +67,12 @@ for my $pkg (@ARGV) {
   opendir(my $dh, '.');
   my @extracted = grep(!/^\.\.?$/, readdir($dh));
   closedir($dh);
+
+  my ($ufile) = grep(/\.url$/i, @extracted);
+  if ($ufile) {
+    unlink($ufile);
+    @extracted = grep(!/\.url$/i, @extracted);
+  }
 
   chdir('..');
 
