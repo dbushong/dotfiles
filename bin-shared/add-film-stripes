@@ -26,7 +26,7 @@ $opt{v} = 1 if $opt{n};
 my $pitch     = 4.74;
 my $ks_width  = 2.794;
 my $ks_height = 1.981;
-my $ks_rr_rad = 0.51;
+my $ks_rr_rad = 0.255;
 
 my ($in, $out) = @ARGV;
 
@@ -46,17 +46,11 @@ if ($opt{w}) {
 my $pp_mm = $w / 35; # pixels per mm
 $$_ = round($$_ * $pp_mm) for \($pitch, $ks_width, $ks_height, $ks_rr_rad);
 
-my $radii = "$ks_rr_rad,$ks_rr_rad";
-my $lx2   = $ks_width - 2;
-my $rx1   = $w - $ks_width + 1;
-my $rx2   = $w - 2;
+my $lx2   = $ks_width-2;
 my @perfs = map { 
   my $y1  = $_ * $pitch - round($ks_height / 2);
   my $y2  = $y1 + $ks_height - 1;
-  (
-    '-draw', "roundRectangle 1,$y1 $lx2,$y2 $radii",
-    '-draw', "roundRectangle $rx1,$y1 $rx2,$y2 $radii"
-  )
+  ( '-draw', "roundRectangle 1,$y1 $lx2,$y2 $ks_rr_rad,$ks_rr_rad" )
 } 0..(ceil($h / $pitch) - 1);
 
 my @cmd = ('convert',
@@ -66,8 +60,7 @@ my @cmd = ('convert',
     '-size', "${w}x$h", 
     'xc:none', 
     '-fill', 'black',
-    '-draw', 'rectangle 0,0 ' . ($ks_width-1) . ',' . ($h-1),
-    '-draw', 'rectangle ' . ($w-$ks_width) . ',0 ' . ($w-1) . ',' . ($h-1),
+    '-draw', 'rectangle 0,0 '.($ks_width-1).','.($h-1),
     '(',
       '-size', "${w}x$h",
       'xc:none',
@@ -76,8 +69,13 @@ my @cmd = ('convert',
     ')',
     '-compose', 'Dst_Out',
     '-composite',
+    '(',
+      '+clone',
+      '-flop',
+    ')',
+    '-compose', 'Over',
+    '-composite',
   ')',
-  '-compose', 'Over',
   '-composite',
   $out
 );
