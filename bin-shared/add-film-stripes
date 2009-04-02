@@ -1,0 +1,88 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Getopt::Std;
+use File::Basename;
+use POSIX 'ceil';
+
+my $prog = basename($0);
+my %opt;
+getopts('hw:vn', \%opt);
+usage() if $opt{h} || @ARGV != 2;
+sub usage {
+  die <<EOU;
+usage: $prog [-v] [-n] [-w output-width] input-img output-img
+       -v: verbose
+       -w: scale final result proportionally to given width
+       -n: just print the command; implies -v
+EOU
+}
+
+$opt{v} = 1 if $opt{n};
+
+# 35mm details from http://en.wikipedia.org/wiki/Film_perforations
+# all values in mm
+my $pitch     = 4.74;
+my $ks_width  = 2.794;
+my $ks_height = 1.981;
+my $ks_rr_rad = 0.51;
+
+my ($in, $out) = @ARGV;
+
+my $id = `identify \Q$in`;
+$id =~ / (\d+)x(\d+) / 
+  || die "$prog: couldn't find dimensions running: identify \Q$in\E\n";
+my ($w, $h) = ($1, $2);
+
+my @resize;
+if ($opt{w}) {
+  $h = round($h / ($w / $opt{w}));
+  $w = $opt{w};
+  @resize = ('-resize', "${w}x$h");
+}
+
+# convert above 35mm values to pixels
+my $pp_mm = $w / 35; # pixels per mm
+$$_ = round($$_ * $pp_mm) for \($pitch, $ks_width, $ks_height, $ks_rr_rad);
+
+my $radii = "$ks_rr_rad,$ks_rr_rad";
+my $lx2   = $ks_width - 2;
+my $rx1   = $w - $ks_width + 1;
+my $rx2   = $w - 2;
+my @perfs = map { 
+  my $y1  = $_ * $pitch - round($ks_height / 2);
+  my $y2  = $y1 + $ks_height - 1;
+  (
+    '-draw', "roundRectangle 1,$y1 $lx2,$y2 $radii",
+    '-draw', "roundRectangle $rx1,$y1 $rx2,$y2 $radii"
+  )
+} 0..(ceil($h / $pitch) - 1);
+
+my @cmd = ('convert',
+  $in, 
+  @resize,
+  '(', 
+    '-size', "${w}x$h", 
+    'xc:none', 
+    '-fill', 'black',
+    '-draw', 'rectangle 0,0 ' . ($ks_width-1) . ',' . ($h-1),
+    '-draw', 'rectangle ' . ($w-$ks_width) . ',0 ' . ($w-1) . ',' . ($h-1),
+    '(',
+      '-size', "${w}x$h",
+      'xc:none',
+      '-fill', 'white',
+      @perfs,
+    ')',
+    '-compose', 'Dst_Out',
+    '-composite',
+  ')',
+  '-compose', 'Over',
+  '-composite',
+  $out
+);
+
+print(join(' ', @cmd), "\n") if $opt{v};
+system(@cmd) unless $opt{n};
+
+sub round { int(shift() + 0.5); }
