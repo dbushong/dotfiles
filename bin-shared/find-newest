@@ -1,0 +1,59 @@
+#!/usr/bin/perl
+#
+# finds the most/least recently modified file or directory in the list of 
+# directories given (defaults to ./)
+#
+
+use File::Find;
+use Getopt::Std;
+
+$0 =~ s,.*/,,;
+getopts('hn:vr', \%opt);
+
+$est    = ($0 =~ /new/) ? 'newest' : 'oldest';
+$oldest = ($est eq 'oldest');
+
+die <<EOF if $opt{h} || !@ARGV;
+usage: $0 [-n num [-r]] [-v] dir1 [dir2 [...]]
+       -n: return the n $est; default is 1
+       -r: reverse the sort order of the results (only makes sense for -n
+	   values > 1); defaults to $est first
+       -v: instead of just the filenames, also give the modification times
+EOF
+
+$opt{n} ||= 1;
+%save     = ();
+
+find(sub {
+  my $t = (stat)[9];
+  if (($oldest && ($t < $minax || !defined $minax))
+      || (!$oldest && $t > $minax)) {
+    $save{$t} = $File::Find::name;
+    delete $save{$minax} if keys(%save) > $opt{n};
+    $minax = ($oldest ? newest(keys %save) : oldest(keys %save))
+      if keys(%save) == $opt{n};
+  }
+}, @ARGV);
+
+if (%save) {
+  $sort = ($oldest xor $opt{r});
+  for (sort { $sort ? ($a <=> $b) : ($b <=> $a) } keys %save) {
+    print $save{$_};
+    print(": ", scalar localtime($_)) if $opt{v};
+    print "\n";
+  }
+} else {
+  print STDERR "no files found\n";
+}
+
+sub newest {
+  my $max = 0;
+  for (@_) { $max = $_ if $_ > $max }
+  $max;
+}
+
+sub oldest {
+  my $min;
+  for (@_) { $min = $_ if $_ < $min || !defined $min }
+  $min;
+}
