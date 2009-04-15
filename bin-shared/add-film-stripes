@@ -30,7 +30,7 @@ my $ks_rr_rad = 0.255;
 
 my ($in, $out) = @ARGV;
 
-my $id = `identify \Q$in`;
+my $id = `identify \Q$in\E 2>/dev/null`;
 $id =~ / (\d+)x(\d+) / 
   || die "$prog: couldn't find dimensions running: identify \Q$in\E\n";
 my ($w, $h) = ($1, $2);

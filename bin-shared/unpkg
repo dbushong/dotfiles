@@ -22,6 +22,7 @@ for my $pkg (@ARGV) {
 
   my $base = basename($pkg);
   my $rm = ($base !~ /\.part$/);
+  my $fail;
   $base =~ s/\.(zip|xpi|jar|7z|tar(\.(gz|bz2))?|t[bg]z|rar)(\.part)?$//i;
   my $dir = unique_file($base);
   mkdir($dir);
@@ -35,28 +36,34 @@ for my $pkg (@ARGV) {
     unlink($tmp);
   }
   elsif ($pkg =~ /\.(zip|xpi|jar)$/i) {
-    $rm = !system('unzip', $pkg);
+    $fail = system('unzip', $pkg);
   }
   elsif ($pkg =~ /\.rar\.part$/i) {
-    system('unrar', '-kb', 'x', $pkg);
+    $fail = system('unrar', '-kb', 'x', $pkg);
   }
   elsif ($pkg =~ /\.rar$/i) {
-    $rm = !system('unrar', 'x', $pkg);
+    $fail = system('unrar', 'x', $pkg);
   }
   elsif ($pkg =~ /\.7z$/i) {
-    system('7zr', 'x', $pkg);
+    $fail = system('7zr', 'x', $pkg);
   }
   elsif ($pkg =~ /\.(tgz|tar\.gz)(\.part)?$/i) {
-    system('tar', 'zxf', $pkg);
+    $fail = system('tar', 'zxf', $pkg);
   }
   elsif ($pkg =~ /\.(tbz|tar\.bz2)(\.part)?$/i) {
-    system('tar', 'jxf', $pkg);
+    $fail = system('tar', 'jxf', $pkg);
   }
   elsif ($pkg =~ /\.tar$/i) {
-    system('tar', 'x', $pkg);
+    $fail = system('tar', 'x', $pkg);
   }
   else {
     warn "$prog: unknown archive type: $pkg; skipping\n";
+    chdir('..');
+    rmdir($dir);
+    next;
+  }
+
+  if ($fail) {
     chdir('..');
     rmdir($dir);
     next;
