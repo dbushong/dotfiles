@@ -54,7 +54,7 @@ for my $pkg (@ARGV) {
     $fail = system('tar', 'jxf', $pkg);
   }
   elsif ($pkg =~ /\.tar$/i) {
-    $fail = system('tar', 'x', $pkg);
+    $fail = system('tar', 'xf', $pkg);
   }
   else {
     warn "$prog: unknown archive type\n";
