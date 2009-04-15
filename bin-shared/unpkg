@@ -57,13 +57,12 @@ for my $pkg (@ARGV) {
     $fail = system('tar', 'x', $pkg);
   }
   else {
-    warn "$prog: unknown archive type: $pkg; skipping\n";
-    chdir('..');
-    rmdir($dir);
-    next;
+    warn "$prog: unknown archive type\n";
+    $fail = 1;
   }
 
   if ($fail) {
+    warn "$prog: failed to unpkg $pkg; skipping\n";
     chdir('..');
     rmdir($dir);
     next;
