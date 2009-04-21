@@ -1,0 +1,119 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Getopt::Std;
+use File::Basename;
+use Cwd;
+use File::Temp 'mktemp';
+
+my $prog = basename($0);
+my %opt;
+getopts('hr:vn', \%opt);
+usage() if $opt{h} || !@ARGV || ($opt{r} && $opt{r} !~ /^(90|180|270)$/);
+sub usage {
+  die <<EOU;
+usage: $prog [options] input.(dv|mov|avi) output.mp4
+       $prog [options] in1.(dv|mov|avi) [in2.(dv|mov|avi) [...]]
+       options are:
+       -v: verbose mode: show commands run and their output
+       -n: don't do anything; just print commands (-v style)
+       -r: rotate output movie by degrees clockwise (90, 180, or 270)
+EOU
+}
+
+$opt{v} = 1 if $opt{n};
+
+my $rot_filter = '';
+$rot_filter = {
+  90  => ',rotate=1',
+  180 => ',mirror,flip',
+  270 => ',rotate=2',
+}->{$opt{r}} if $opt{r};
+
+my $passlog = mktemp("/tmp/$prog.log.XXXX");
+
+run('renice', '+20', $$);
+
+if (@ARGV == 2 && $ARGV[1] =~ /\.mp4$/) {
+  convert(@ARGV);
+}
+else {
+  for (@ARGV) {
+    my $to = $_;
+    $to =~ s/\.[^.]+$/.mp4/;
+    convert($_, $to);
+  }
+}
+
+sub convert {
+  my ($in, $out) = @_;
+
+  my ($width, $height) = (320, 240);
+
+  my $dsize = '';
+  if ($in =~ /\.avi$/i) {
+    # nothing to change
+  }
+  elsif ($in =~ /\.dv$/i) {
+    $dsize = ',dsize=4/3';
+  }
+  elsif ($in =~ /\.mov$/i) {
+    ($width, $height) = (512, 288);
+  }
+  else {
+    warn "$prog: unknown extension on input file $in; must be dv, avi, or mov; skipping\n";
+    return;
+  }
+
+  my $info = `ffmpeg -i \Q$in\E 2>&1`;
+
+  my $fps = ($info =~ /([\d.]+)\s+(?:fps|tb)/) && $1;
+  my @fps;
+  if ($fps) {
+    @fps = ('-fps', $fps);
+  }
+  else {
+    warn "$prog: couldn't determine fps of $in\n";
+  }
+
+  my $audio = $info =~ /Stream #0\.1/;
+
+  my $shared_opts = qq{-passlogfile $passlog -vf softskip,scale=$width:$height:0:0$rot_filter$dsize,harddup -sws 10 -af resample=22050:0:2 -srate 22050 -channels 2 -oac faac -faacopts mpeg=4:br=128:object=2 -ovc x264 -x264encopts bitrate=1000:me=umh:me_range=24:nodct_decimate:nointerlaced:8x8dct:nofast_pskip:trellis=1:partitions=p8x8,b8x8,i8x8,i4x4:mixed_refs:keyint=300:keyint_min=30:frameref=3:bframes=6:b_adapt:b_pyramid:weight_b:direct_pred=auto:subq=7:chroma_me:cabac:deblock:nossim:nopsnr:level_idc=41:threads=auto};
+
+  run("mencoder \Q$in\E -o /dev/null $shared_opts:pass=1:turbo=2");
+  run("mencoder \Q$in\E -o \Q$out\E.avi $shared_opts:pass=2");
+
+  unlink($passlog) unless $opt{n};
+
+  my $old_dir = getcwd();
+  chdir(dirname($out));
+  $out = basename($out);
+
+  run('MP4Box', '-aviraw', 'video', "$out.avi", '-out', "$out.h264");
+  if ($audio) {
+    run('MP4Box', '-aviraw', 'audio', "$out.avi", '-out', "$out.aac");
+    rename("${out}_audio.raw", "${out}_audio.aac") unless $opt{n};
+    run('MP4Box', @fps, '-add', "${out}_video.h264", 
+                         '-add', "${out}_audio.aac", $out);
+  }
+  else {
+    run('MP4Box', @fps, '-add', "${out}_video.h264", $out);
+  }
+  unlink("${out}_video.h264", "${out}_audio.aac", "$out.avi") unless $opt{n};
+
+  chdir($old_dir);
+}
+
+sub run {
+  my (@cmd) = @_;
+  my $cmd = (@cmd > 1) ? join(' ', map { quotemeta} @cmd) : $cmd[0];
+  if ($opt{v}) {
+    print "$cmd\n";
+    system(@cmd) unless $opt{n};
+  }
+  else {
+    $cmd .= ' >/dev/null 2>&1';
+    system($cmd) unless $opt{n};
+  }
+}
