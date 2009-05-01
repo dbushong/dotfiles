@@ -1,0 +1,46 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Getopt::Std;
+use File::Basename;
+
+my $prog = basename($0);
+my %opt;
+getopts('h', \%opt);
+usage() if $opt{h};
+sub usage {
+  die <<EOU if @ARGV != 2;
+usage: $prog in.(avi|dv|mov) out.(png|jpg)
+EOU
+}
+
+my ($in, $out) = @ARGV;
+
+my $dims;
+$dims = $1 if `mplayer -ao null -vo null -frames 1 \Q$in\E 2>/dev/null` 
+    =~ /^VO:.*\d+x\d+ => (\d+x\d+)/m;
+
+my $skip = '-ss 00:00:01';
+extract();
+unless (-f "$out-1.png") {
+  $skip = '';
+  extract();
+}
+die "$prog: failed to extract frame from $in\n" unless -f "$out-1.png";
+if ($dims && `file \Q$out\E-1.png` =~ /(\d+)\s*x\s*(\d+)/ 
+          && "${1}x$2" ne $dims) {
+  system('convert', "$out-1.png", '-resize', $dims.'!', $out);
+  unlink("$out-1.png");
+}
+elsif ($out =~ /\.png$/i) {
+  rename("$out-1.png", $out);
+}
+else {
+  system('convert', "$out-1.png", $out);
+  unlink("$out-1.png");
+}
+
+sub extract {
+  system("ffmpeg -i \Q$in\E -an $skip -r 1 -vframes 1 -y \Q$out-\%d.png\E 2>/dev/null");
+}

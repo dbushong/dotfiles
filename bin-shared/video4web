@@ -9,16 +9,19 @@ use File::Temp 'mktemp';
 
 my $prog = basename($0);
 my %opt;
-getopts('hr:vn', \%opt);
+getopts('hfr:vne:', \%opt);
 usage() if $opt{h} || !@ARGV || ($opt{r} && $opt{r} !~ /^(90|180|270)$/);
 sub usage {
   die <<EOU;
-usage: $prog [options] input.(dv|mov|avi) output.mp4
-       $prog [options] in1.(dv|mov|avi) [in2.(dv|mov|avi) [...]]
+usage: $prog [options] input.(dv|mov|avi) output.(mp4|flv)
+       $prog [options] [-f] in1.(dv|mov|avi) [in2.(dv|mov|avi) [...]]
        options are:
+       -e: give an extension to pretend the input file is for purposes of
+           settings
        -v: verbose mode: show commands run and their output
        -n: don't do anything; just print commands (-v style)
        -r: rotate output movie by degrees clockwise (90, 180, or 270)
+       -f: output flv instead of mp4
 EOU
 }
 
@@ -35,13 +38,17 @@ my $passlog = mktemp("/tmp/$prog.log.XXXX");
 
 run('renice', '+20', $$);
 
-if (@ARGV == 2 && $ARGV[1] =~ /\.mp4$/) {
+if (@ARGV == 2 && $ARGV[1] =~ /\.(flv|mp4)$/i) {
+  my $ext = $1;
+  die "$prog: can't specify -f and an mp4 output file\n"
+    if $opt{f} && lc($1) eq 'mp4';
   convert(@ARGV);
 }
 else {
   for (@ARGV) {
-    my $to = $_;
-    $to =~ s/\.[^.]+$/.mp4/;
+    my $to  = $_;
+    my $ext = $opt{f} ? 'flv' : 'mp4';
+    $to =~ s/\.[^.]+$/.$ext/;
     convert($_, $to);
   }
 }
@@ -51,14 +58,24 @@ sub convert {
 
   my ($width, $height) = (320, 240);
 
+  my $fmt;
+  if ($opt{e}) {
+    $fmt = $opt{e};
+  }
+  else {
+    $in =~ /\.([^.]+)$/;
+    $fmt = $1;
+  }
+  $fmt = lc($fmt);
+
   my $dsize = '';
-  if ($in =~ /\.avi$/i) {
+  if ($fmt eq 'avi') {
     # nothing to change
   }
-  elsif ($in =~ /\.dv$/i) {
+  elsif ($fmt eq 'dv') {
     $dsize = ',dsize=4/3';
   }
-  elsif ($in =~ /\.mov$/i) {
+  elsif ($fmt eq 'mov') {
     ($width, $height) = (512, 288);
   }
   else {
@@ -79,12 +96,28 @@ sub convert {
 
   my $audio = $info =~ /Stream #0\.1/;
 
-  my $shared_opts = qq{-passlogfile $passlog -vf softskip,scale=$width:$height:0:0$rot_filter$dsize,harddup -sws 10 -af resample=22050:0:2 -srate 22050 -channels 2 -oac faac -faacopts mpeg=4:br=128:object=2 -ovc x264 -x264encopts bitrate=1000:me=umh:me_range=24:nodct_decimate:nointerlaced:8x8dct:nofast_pskip:trellis=1:partitions=p8x8,b8x8,i8x8,i4x4:mixed_refs:keyint=300:keyint_min=30:frameref=3:bframes=6:b_adapt:b_pyramid:weight_b:direct_pred=auto:subq=7:chroma_me:cabac:deblock:nossim:nopsnr:level_idc=41:threads=auto};
+  my $shared_opts = qq{-passlogfile $passlog -vf softskip,scale=$width:$height:0:0$rot_filter$dsize,harddup -sws 10 -af resample=22050:0:2 -srate 22050 -channels 2 };
+  
+  my ($pass1_opts, $pass2_opts, $ext);
+  if ($out =~ /\.flv$/i) {
+    $shared_opts .= q{-of lavf -lavfopts format=flv -oac lavc -ovc lavc -lavcopts acodec=libmp3lame:abitrate=128:vcodec=flv:vbitrate=1000:mbd=2:mv0:trell:v4mv:cbp:last_pred=3};
+    $pass1_opts = 'vpass=1:turbo';
+    $pass2_opts = 'vpass=2';
+    $ext        = '';
+  }
+  else {
+    $shared_opts .= q{-oac faac -faacopts mpeg=4:br=128:object=2 -ovc x264 -x264encopts bitrate=1000:me=umh:me_range=24:nodct_decimate:nointerlaced:8x8dct:nofast_pskip:trellis=1:partitions=p8x8,b8x8,i8x8,i4x4:mixed_refs:keyint=300:keyint_min=30:frameref=3:bframes=6:b_adapt:b_pyramid:weight_b:direct_pred=auto:subq=7:chroma_me:cabac:deblock:nossim:nopsnr:level_idc=41:threads=auto};
+    $pass1_opts = 'pass=1:turbo=2';
+    $pass2_opts = 'pass=2';
+    $ext        = '.avi';
+  }
 
-  run("mencoder \Q$in\E -o /dev/null $shared_opts:pass=1:turbo=2");
-  run("mencoder \Q$in\E -o \Q$out\E.avi $shared_opts:pass=2");
+  run("mencoder \Q$in\E -o /dev/null $shared_opts:$pass1_opts");
+  run("mencoder \Q$in\E -o \Q$out\E$ext $shared_opts:$pass2_opts");
 
   unlink($passlog) unless $opt{n};
+
+  return if $out =~ /\.flv$/i;
 
   my $old_dir = getcwd();
   chdir(dirname($out));
