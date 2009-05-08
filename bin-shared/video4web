@@ -56,8 +56,6 @@ else {
 sub convert {
   my ($in, $out) = @_;
 
-  my ($width, $height) = (320, 240);
-
   my $fmt;
   if ($opt{e}) {
     $fmt = $opt{e};
@@ -69,14 +67,14 @@ sub convert {
   $fmt = lc($fmt);
 
   my $dsize = '';
-  if ($fmt eq 'avi') {
-    # nothing to change
-  }
-  elsif ($fmt eq 'dv') {
-    $dsize = ',dsize=4/3';
-  }
-  elsif ($fmt eq 'mov') {
+  my ($width, $height);
+  if ($fmt eq 'mov') {
+    # all .movs are widescreen from dave's camera (for now)
     ($width, $height) = (512, 288);
+  }
+  elsif ($fmt =~ /^(avi|dv)$/) {
+    $dsize = ',dsize=4/3';
+    ($width, $height) = (320, 240);
   }
   else {
     warn "$prog: unknown extension on input file $in; must be dv, avi, or mov; skipping\n";

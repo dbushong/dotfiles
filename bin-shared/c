@@ -1,0 +1,26 @@
+#!/usr/bin/perl
+#
+# c -- nice version of cal(1)
+#
+# this has two changes from standard cal(1):
+# 1) if you just say "c" then you get the current month with the current day
+#    in bold
+# 2) it changes the syntax of cal from cal [[month] year] to cal [month [year]]
+#
+
+$0 =~ s,.*/,,;
+
+die("usage: $0 [month [year]]\n") 
+    if @ARGV > 2 || ($ARGV[0] && ($ARGV[0] !~ /^\d+$/)) 
+		 || ($ARGV[1] && ($ARGV[1] !~ /^\d+$/));
+
+if ($ARGV[0]) {
+    $year = $ARGV[1] || (localtime)[5] + 1900;
+    exec('cal', $ARGV[0], $year);
+}
+
+$cal = `cal`;
+$day = (localtime)[3];
+$cal =~ s/^$day\s+|\s+$day\s+|$day$/&bold($&)/e;
+sub bold { my($in) = @_; $in =~ s/\d+/\33[1m$&\33[0m/; return $in; }
+print $cal;
