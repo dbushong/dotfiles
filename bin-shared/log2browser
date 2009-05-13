@@ -1,0 +1,97 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Getopt::Std;
+use File::Basename;
+
+my $prog = basename($0);
+my %opt;
+getopts('hn:opB', \%opt);
+usage() if $opt{h} || ($opt{o} && (exists $opt{n} || $opt{p}));
+sub usage {
+  die <<EOU;
+usage: $prog [-n version-places] [-p] [-B] [file [...]]
+       $prog -o
+       -n: default 1; -1 == all; 0 == no versions
+       -p: percentages instead of counts
+       -o: only output unmatched (*o*ther)
+       -B: hide bots
+EOU
+}
+$opt{n} = 1 unless exists $opt{n};
+
+my %counts;
+
+while (<>) {
+  chomp;
+  s/^(?:\S+\s+){11}"([^"]{2,})"$/$1/ || next;
+  next if $_ eq '-';
+
+  my $line = $_;
+
+  # Blah 1.2.3 or Blah/1.2.3
+  if ($line =~ m{\b(MSIE|Danger hiptop|Android|PLAYSTATION) ([\d.rcbape]+)} || $line =~ m{\b(Chrome|Firefox|Flock|Opera|BlackBerry\d+|Camino|Netscape\d*|Pandora|Shiretoko|Iceweasel|Minefield|Konqueror|Nokia[^/]*|Trident)/([\d.rcbape]+)}) {
+    output($1, $2);
+  }
+  # Version/1.2.3 Blah/348
+  elsif ($line =~ m{ Version/(\S+).*\b(Safari)/\S+}) {
+    output($2, $1);
+  }
+  # no Version + Safari/234 == Safari 2.x
+  elsif ($line =~ m{\bSafari/\d}) {
+    output('Safari', 2);
+  }
+  # Bots
+  elsif ($line =~ /(feedfetcher|spider|bots?|pubsub|bloglines|crawl(er)?|test|teoma|charlotte|java|lwp::simple|google desktop|agent|scoutjet|slurp|python-urllib|scooter|rambler|validator|winhttp|sleuth|seeker|nutch|nagios|libwww-perl|webcollage|screensaver|curl|wget)\b/i || $line eq 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US)') {
+    output('BOT') unless $opt{B};
+  }
+  elsif ($line =~ /\b(NET_mmhpset)\b/) {
+    output($1);
+  }
+  else {
+    if ($opt{o}) {
+      print "$line\n";
+    }
+    else {
+      output('OTHER');
+    }
+  }
+}
+
+my $total = 0;
+if ($opt{p}) {
+  $total += $_ for values %counts;
+}
+
+for (sort { $counts{$b} <=> $counts{$a} } keys %counts) {
+  my ($sp, $num);
+  if ($opt{p}) {
+    $num = int($counts{$_} / $total * 100 + 0.5) . '%';
+    $sp  = 4;
+  }
+  else {
+    $num = $counts{$_};
+    $sp  = 9;
+  }
+  printf("%${sp}s %s\n", $num, $_);
+}
+
+sub output {
+  return if $opt{o};
+  my ($name, $ver) = @_;
+  if ($opt{n} && $ver) {
+    if ($opt{n} > 0) {
+      $ver =~ s/^((?:\d+\D+){$opt{n}}).*/$1/o;
+      $ver =~ s/\D+$//;
+    }
+    $counts{"$name $ver"}++;
+  }
+  else {
+    $counts{$name}++;
+  }
+}
+
+sub group {
+  my ($v) = @_;
+}
