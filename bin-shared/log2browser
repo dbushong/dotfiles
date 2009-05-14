@@ -7,8 +7,8 @@ use File::Basename;
 
 my $prog = basename($0);
 my %opt;
-getopts('hn:opB', \%opt);
-usage() if $opt{h} || ($opt{o} && (exists $opt{n} || $opt{p}));
+getopts('hn:upB', \%opt);
+usage() if $opt{h} || ($opt{u} && (exists $opt{n} || $opt{p}));
 sub usage {
   die <<EOU;
 usage: $prog [-n version-places] [-p] [-B] [file [...]]
@@ -50,11 +50,11 @@ while (<>) {
     output($1);
   }
   else {
-    if ($opt{o}) {
+    if ($opt{u}) {
       print "$line\n";
     }
     else {
-      output('OTHER');
+      output('UNKNOWN');
     }
   }
 }
@@ -78,7 +78,7 @@ for (sort { $counts{$b} <=> $counts{$a} } keys %counts) {
 }
 
 sub output {
-  return if $opt{o};
+  return if $opt{u};
   my ($name, $ver) = @_;
   if ($opt{n} && $ver) {
     if ($opt{n} > 0) {
