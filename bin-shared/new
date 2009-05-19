@@ -1,0 +1,98 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Getopt::Std;
+use File::Basename;
+
+my %format = (
+  'perl-script' => {
+    extension  => 'pl',
+    executable => 1,
+    template   => <<'EOT'
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Getopt::Std;
+use File::Basename;
+
+my $prog = basename($0);
+my %opt;
+getopts('h', \%opt);
+usage() if $opt{h};
+sub usage {
+  die <<EOU;
+usage: $prog
+EOU
+}
+
+EOT
+  },
+  'xhtml' => {
+    extension    => 'html',
+    editor_flags => { qr/vi/ => ['+8'] },
+    template => <<'EOT'
+<?xml version="1.0" charset="UTF-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+  <head>
+    <title>Title of Page</title>
+  </head>
+  <body>
+    
+  </body>
+</html>
+EOT
+  },
+);
+
+my $prog = basename($0);
+my %opt;
+getopts('h', \%opt);
+usage() if $opt{h} || @ARGV < 1 || @ARGV > 2;
+sub usage {
+  die <<EOU;
+usage: $prog [@{[ join(' | ', sort keys %format) ]}] filename
+EOU
+}
+
+my ($key, $file);
+if (@ARGV == 1) {
+  $file = $ARGV[0];
+  die "$prog: file must have an extension to autodetect format\n"
+    unless $file =~ /\.([^.]+)$/;
+  my $ext = lc($1);
+  ($key) = grep { lc($format{$_}{extension}) eq $ext } keys %format;
+  die "$prog: no match for format with given extension; specify explicitly\n"
+    unless $key;
+}
+else {
+  ($key, $file) = @ARGV;
+}
+
+unless ($format{$key}) {
+  my @m = grep(/$key/i, sort { length($a) <=> length($b) } keys %format);
+  die("$prog: choose one of: " . join(', ', @m) . "\n") if @m > 1;
+  die "$prog: no match for format $key\n" unless @m;
+  $key = $m[0];
+}
+
+my $fmt = $format{$key};
+
+open(my $fh, '>', $file) || die "$prog: couldn't open $file: $!\n";
+print $fh $fmt->{template};
+close($fh);
+
+chmod(0775, $file) if $fmt->{executable};
+
+my $editor = $ENV{VISUAL} || $ENV{EDITOR} || 'editor';
+my @flags;
+$fmt->{editor_flags} ||= { qr/vi/ => ['+'] };
+while (my ($re, $flags) = each(%{$fmt->{editor_flags}})) {
+  if ($editor =~ $re) {
+    @flags = @$flags;
+    last;
+  }
+}
+exec($editor, @flags, $file);
