@@ -1,0 +1,66 @@
+#!/usr/bin/perl
+
+# TODO: add -n support and send & use Last-Modified & If-Modified-Since hdrs
+
+use strict;
+use warnings;
+use Getopt::Std;
+use File::Basename;
+use LWP::UserAgent;
+
+my $def_last_bytes = 800;
+my $min_sleep      = 5;
+my $max_sleep      = 320;
+
+my $prog = basename($0);
+my %opt;
+getopts('hfb:', \%opt);
+usage() if $opt{h} || @ARGV != 1;
+sub usage {
+  die <<EOU;
+usage: $prog [-b bytes] [-f] url
+       -b: initially show last -b bytes; default: $def_last_bytes
+EOU
+}
+$opt{b} ||= $def_last_bytes;
+
+my $url = $ARGV[0];
+my $ua  = new LWP::UserAgent;
+my $len = get_length();
+
+print tail_content(($len > $opt{b}) && ($len - $opt{b} - 1))->content;
+exit unless $opt{f};
+
+my $sleep = $min_sleep;
+while (1) {
+  sleep($sleep);
+  my $res = tail_content($len);
+  if ($res->code == 416) {
+    $sleep *= 2 unless $sleep >= $max_sleep;
+  }
+  elsif ($res->code == 206) {
+    $len += $res->header('Content-Length');
+    $sleep = $min_sleep;
+    print $res->content;
+  }
+  else {
+    warn("$prog: got status code " . $res->code . "\n");
+  }
+}
+
+sub get_length {
+  my $res = $ua->head($url);
+
+  die "$prog: HEAD $url does not accept byte ranges; just use curl | tail\n"
+    unless ($res->header('Accept-Ranges') || '') =~ /bytes/;
+
+  $res->header('Content-Length')
+    || die "$prog: HEAD $url didn't return a Content-Length!\n";
+}
+
+sub tail_content {
+  my ($from) = @_;
+  my %hdrs;
+  $hdrs{Range} = "bytes=$from-" if $from;
+  $ua->get($url, %hdrs);
+}
