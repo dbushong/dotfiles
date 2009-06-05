@@ -15,9 +15,9 @@ my $def_fmt = '%Y/%m/%d';
 
 my %opt;
 my $prog = basename $0;
-getopts('hcnvfk:E', \%opt);
-die <<EOF if $opt{h} || @ARGV < 2;
-usage: $prog [-E] [-n | -v] [-f] [-c] [-d strftime-fmt] \\
+getopts('hclnvfk:E', \%opt);
+die <<EOF if $opt{h} || @ARGV < 2 || ($opt{l} && $opt{c});
+usage: $prog [-E] [-n | -v] [-f] [-l | -c] [-d strftime-fmt] \\
          file [dir2 [...]] dest-dir
        -E: don't use EXIF data even if available
        -n: don't actually move (implies -v)
@@ -25,6 +25,7 @@ usage: $prog [-E] [-n | -v] [-f] [-c] [-d strftime-fmt] \\
            default: $def_fmt
        -v: verbose
        -f: force move; overwrite without asking; default is to skip and warn
+       -l: move, then link
        -c: copy intead of moving
 EOF
 $opt{v} = 1 if $opt{n};
@@ -93,7 +94,12 @@ sub mv_file {
     copy($file, $path) || warn $!;
   }
   else {
-    move($file, $path) || warn $!;
+    if (move($file, $path)) {
+      symlink($path, $file) if $opt{l};
+    }
+    else {
+      warn $!;
+    }
   }
   utime(time(), $ts, $path);
 
