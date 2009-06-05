@@ -48,6 +48,5 @@ alias vi vim
 alias ls ls-F
 alias cd pushd
 alias a 'awk '\''{print $\!^}'\'
-alias up 'cvs -q up -dP'
 alias d 'dirs -v | head'
 alias sc 'source ~/.cshrc'

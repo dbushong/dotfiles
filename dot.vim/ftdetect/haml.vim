@@ -1,1 +1,1 @@
-autocmd BufNewFile,BufRead *.haml setfiletype haml
+autocmd BufNewFile,BufRead *.haml set ft=haml
