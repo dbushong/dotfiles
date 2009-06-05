@@ -68,6 +68,7 @@ nmap S
 nmap <Bslash> :set invpaste<CR>:set paste?<CR>
 nmap <Bslash>{ $? if rWi($C) {kddp>>A;}
 nmap <Bslash>} kddpk<<$xJf(x$F)C;jddk
+nmap M :w:!make xpi-generated
 nnoremap <C-w>j <C-w>w
 nnoremap <C-w>k <C-w>W
 nnoremap <C-]> g<C-]>
