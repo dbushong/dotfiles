@@ -1,2 +1,5 @@
 [ui]
 username = David Bushong <david@bushong.net>
+
+[extensions]
+hgext.convert=
