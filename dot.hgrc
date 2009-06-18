@@ -3,3 +3,4 @@ username = David Bushong <david@bushong.net>
 
 [extensions]
 hgext.convert=
+hgext.rebase=
