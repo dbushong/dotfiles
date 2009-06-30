@@ -1,0 +1,56 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Getopt::Std;
+use File::Basename;
+use Config::IniFiles;
+use File::Path;
+use POSIX 'strftime';
+
+my $prog = basename($0);
+my %opt;
+getopts('hc:p:Ri:v', \%opt);
+usage() if $opt{h};
+sub usage {
+  die <<EOU;
+usage: $prog [-v] [-c cmd] [-R] [-p profile-name]
+       -c: specify command, e.g. firefox-3.0 or firefox-3.5; default: firefox
+       -R: don't remove the profile when done
+       -p: specify a name for the profile instead of autogenerating
+       -i: path to profiles.ini, defaults to ~/.mozilla/<firefox>/profiles.ini
+       -v: verbose
+EOU
+}
+
+my $ff     = (exists($opt{c}) ? $opt{c} : 'firefox') . ' -no-remote';
+my $prof   = exists($opt{p}) 
+           ? $opt{p} : strftime('tmp-%y%m%d%H%M%S', localtime());
+
+# Create new Profile and capture its path
+my $cp = `$ff -CreateProfile $prof 2>&1`;
+$cp =~ m{^Success: created profile '$prof' at '([^']+)/([^/]+)/prefs.js'$}
+  || die "$prog: bad output from $ff -CreateProfile $prof: $cp\n";
+my ($profiles_dir, $path) = ($1, $2);
+print "created profile $prof at $profiles_dir/$path\n" if $opt{v};
+
+# Run Firefox on the new profile
+my $run = "$ff -P $prof";
+print "running $run\n" if $opt{v};
+exec($run) if $opt{R};
+system($run);
+
+# Clear out the tmp profile
+my $ini    = "$profiles_dir/profiles.ini";
+print "clearing profile with Path=$path from $ini\n" if $opt{v};
+my $cfg    = Config::IniFiles->new(-file => $ini);
+my ($psec) = grep {
+  /^Profile\d+$/ && $cfg->val($_, 'Path') eq $path
+} $cfg->Sections;
+die "$prog: couldn't find Path=$path in $ini\n" unless $psec;
+$cfg->DeleteSection($psec);
+$cfg->WriteConfig($ini);
+
+# Delete the profile dir
+print "removing $profiles_dir/$path\n" if $opt{v};
+rmtree("$profiles_dir/$path");
