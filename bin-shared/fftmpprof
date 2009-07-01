@@ -1,4 +1,7 @@
 #!/usr/bin/perl
+#
+# creates a temporary firefox profile, runs firefox, then cleans up on exit
+#
 
 use strict;
 use warnings;
@@ -10,7 +13,7 @@ use POSIX 'strftime';
 
 my $prog = basename($0);
 my %opt;
-getopts('hc:p:Ri:v', \%opt);
+getopts('hc:p:Rv', \%opt);
 usage() if $opt{h};
 sub usage {
   die <<EOU;
@@ -18,14 +21,14 @@ usage: $prog [-v] [-c cmd] [-R] [-p profile-name]
        -c: specify command, e.g. firefox-3.0 or firefox-3.5; default: firefox
        -R: don't remove the profile when done
        -p: specify a name for the profile instead of autogenerating
-       -i: path to profiles.ini, defaults to ~/.mozilla/<firefox>/profiles.ini
        -v: verbose
 EOU
 }
 
-my $ff     = (exists($opt{c}) ? $opt{c} : 'firefox') . ' -no-remote';
-my $prof   = exists($opt{p}) 
-           ? $opt{p} : strftime('tmp-%y%m%d%H%M%S', localtime());
+# Initialization
+my $ff   = (exists($opt{c}) ? $opt{c} : 'firefox') . ' -no-remote';
+my $prof = exists($opt{p}) 
+         ? $opt{p} : strftime('tmp-%y%m%d%H%M%S', localtime());
 
 # Create new Profile and capture its path
 my $cp = `$ff -CreateProfile $prof 2>&1`;
