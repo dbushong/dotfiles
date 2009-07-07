@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #
-# mount-webfs: mounts a "web filesystem" using fuse
+# mount.restfs: mounts a "web filesystem" using fuse
 #
 # assuming mount on /mnt, paths look like:
 #
@@ -22,6 +22,8 @@
 #
 # <tree-path> varies depending on the encoding, but for JSON each path
 # component corresponds to an object property (numbers for array indices)
+#
+# TODO: threading!
 
 use strict;
 use warnings;
@@ -36,15 +38,15 @@ use HTML::TreeBuilder;
 use XML::XPath;
 use Digest::MD5 'md5_base64';
 use Encode;
-use Data::Dumper;
 
 my $prog = basename($0);
 my %opt;
-getopts('h', \%opt);
+getopts('hv', \%opt);
 usage() if $opt{h} || @ARGV != 1;
 sub usage {
   die <<EOU;
-usage: $prog mount-point
+usage: $prog [-v] mount-point
+       -v: verbose
 EOU
 }
 
@@ -67,17 +69,17 @@ Fuse::main(
   mountpoint   => $mount,
   debug        => 0,
   threaded     => 0,
-  'getattr'    => \&wfs_getattr,
-  'readlink'   => \&wfs_readlink,
-  'getdir'     => \&wfs_getdir,
-  'open'       => \&wfs_open,
-  'read'       => \&wfs_read,
+  'getattr'    => \&rfs_getattr,
+  'readlink'   => \&rfs_readlink,
+  'getdir'     => \&rfs_getdir,
+  'open'       => \&rfs_open,
+  'read'       => \&rfs_read,
 );
 
-sub wfs_getattr {
-  print "getattr\n";
+sub rfs_getattr {
+  print "getattr()\n" if $opt{v};
   my $info    = parse_path(@_) || return -ENOENT();
-  my $mtime   = $info->{mtime} || 0;
+  my $mtime   = $info->{mtime} || time();
   my $size    = $info->{file} ? length($info->{file}) : 0;
   my $blksize = 1024;
   my $blocks  = ceil($size / $blksize);
@@ -95,21 +97,21 @@ sub wfs_getattr {
   (0, 0, $mode, 1, 0, 0, 0, $size, time(), $mtime, $mtime, $blksize, $blocks);
 }
 
-sub wfs_readlink {
-  print "readlink\n";
+sub rfs_readlink {
+  print "readlink()\n" if $opt{v};
   my $info = parse_path(@_);
   $info && $info->{link_to};
 }
 
-sub wfs_getdir {
-  print "getdir\n";
+sub rfs_getdir {
+  print "getdir()\n" if $opt{v};
   my $info = parse_path(@_) || return -ENOENT();
   return -ENOTDIR() unless $info->{dir};
   ('.', '..', @{$info->{dir}}, 0);
 }
 
-sub wfs_open {
-  print "open\n";
+sub rfs_open {
+  print "open()\n" if $opt{v};
   my ($path, $flags) = @_;
   my $info = parse_path($path);
   # TODO: check flags
@@ -117,34 +119,34 @@ sub wfs_open {
   return -EACCES();
 }
 
-sub wfs_read {
-  print "read\n";
+sub rfs_read {
+  print "read()\n" if $opt{v};
   my ($path, $bytes, $off) = @_;
-  my $info = parse_path($path, 1) || return -ENOENT();
+  my $info = parse_path($path) || return -ENOENT();
   substr($info->{file}, $off, $bytes);
 }
 
 sub parse_path {
-  my ($path, $force) = @_;
-  $path =~ s{/\.(/|$)}{$1}g;
-  #$path =~ s{/([^/]*)/\.\.(/|$)}{$1$2}g;
-  $path =~ s{(?<=[^/])/+$}{};
+  my ($path) = @_;
+  $path =~ s{(?<=[^/])/+$}{}; # trim off trailing /s
 
-  print "$path\n" unless defined $prev_path && $path eq $prev_path;
+  print "PATH $path\n" 
+    if $opt{v} && !(defined $prev_path && $path eq $prev_path);
   $prev_path = $path;
 
   # top level dir: show our cached urls (handy)
-  return { dir => [map { encode_url($_) } keys %hcache] } if $path eq '/';
+  return { dir => [map { encode_name($_) } keys %hcache] } if $path eq '/';
 
   # not a url at top-level?  bogus!
   $path =~ m{^/(https?:__[^/]+)/?} || return undef;
 
   # decode url and grab rest of path
-  my $url = decode_url($1);
+  my $url = decode_name($1);
   $path   = $';
 
-  my $res  = fetch_cached($url, $force);
-  my $type = $res->header('Content-type');
+  my $res   = fetch_cached($url, $path eq 'content');
+  my $mtime = $res->last_modified || time();
+  my $type  = $res->header('Content-type');
   $type =~ s/\s*;.*//;
   $type = $mime_map{$type} || $type;
   my $raw  = $res->decoded_content;
@@ -153,36 +155,41 @@ sub parse_path {
     my @kids = qw(headers content url);
     push(@kids, 'links') if $type eq 'text/html' || $type eq 'text/plain';
     push(@kids, 'tree')  if $type =~ m{^(text/(ht|x)ml|application/json)$};
-    return { dir => \@kids };
+    return { dir => \@kids, mtime => $mtime };
   }
   elsif ($path eq 'content') {
-    return { file => $raw };
+    return { file => $raw, mtime => $mtime };
   }
   elsif ($path eq 'url') {
-    return { file => $url };
+    return { file => $url, mtime => $mtime };
   }
   elsif ($path =~ m{^headers(?:/([^/]+))?$}) {
     my $which = $1;
     if ($which) {
-      return { file => $res->header($which) };
+      return { 
+        file  => scalar($res->header(decode_name($which))), 
+        mtime => $mtime 
+      };
     }
     else {
-      return { dir => [ $res->header_field_names ] };
+      return { dir => [ 
+        map { encode_name($_) } $res->header_field_names
+      ], mtime => $mtime };
     }
   }
   elsif ($path =~ m{^links(?:/([^/]+))?$}) {
     my $which = $1;
     my %links = find_links($type, $raw);
     if ($which) {
-      my $lto = link_to($links{decode_url($which)}, $url) || return undef;
-      return { link_to => $lto };
+      my $lto = link_to($links{decode_name($which)}, $url) || return undef;
+      return { link_to => $lto, mtime => $mtime };
     }
     else {
-      return { dir => [ map { encode_url($_) } keys %links ] };
+      return { dir => [ map { encode_name($_) } keys %links ], mtime => $mtime };
     }
   }
   elsif ($path =~ m{^tree(?:/(.+))?$}) {
-    my @parts = map { decode_url($_) } split(/\//, $1 || '');
+    my @parts = map { decode_name($_) } split(/\//, $1 || '');
     if ($type eq 'application/json') {
       my $tree = parse_json($raw);
       for (@parts) {
@@ -197,15 +204,15 @@ sub parse_path {
         }
       }
       if (ref($tree) eq 'HASH') {
-        return { dir => [ map { encode_url($_) } keys %$tree ] };
+        return { dir => [ map { encode_name($_) } keys %$tree ], mtime=>$mtime };
       }
       elsif (ref($tree) eq 'ARRAY') {
-        return { dir => [ 0..$#$tree ] };
+        return { dir => [ 0..$#$tree ], mtime => $mtime };
       }
       else {
         my $str = $JSON->encode($tree);
         $str =~ s/^"|"$//g;
-        return file_or_link_to($str);
+        return file_or_link_to($str, $mtime);
       }
     }
     elsif ($type =~ m{^text/(html|xml)$}) {
@@ -234,17 +241,17 @@ sub parse_path {
             $kids{'text()'} = 1;
           }
         }
-        return { dir => [ map { encode_url($_) } 
+        return { dir => [ map { encode_name($_) } 
           keys(%kids),
           map { '@' . $_->getName } $node->getAttributes()
-        ]};
+        ], mtime => $mtime};
       }
       elsif ($node->isa('XML::XPath::Node::Attribute')) {
-        return file_or_link_to($node->getNodeValue, 
+        return file_or_link_to($node->getNodeValue, $mtime,
           ($node->getName =~ /^(href|src)$/i) && $url);
       }
       elsif ($node->isa('XML::XPath::Node::Text')) {
-        return file_or_link_to($node->getValue);
+        return file_or_link_to($node->getValue, $mtime);
       }
       else {
         return undef;
@@ -253,14 +260,14 @@ sub parse_path {
   }
 }
 
-sub decode_url {
+sub decode_name {
   my ($str) = @_;
   $str =~ s,_,/,g;
   $str =~ s/\%5f/_/ig;
   $str;
 }
 
-sub encode_url {
+sub encode_name {
   my ($url) = @_;
   $url =~ s/_/\%5f/g;
   $url =~ s,/,_,g;
@@ -303,14 +310,14 @@ sub link_to {
   my ($str, $base) = @_;
   $str = URI->new_abs($str, $base) if $base;
   return undef unless $str =~ m{^https?://\S+$};
-  return $mount . '/' . encode_url($str);
+  return $mount . '/' . encode_name($str);
 }
 
 sub file_or_link_to {
-  my ($str, $base) = @_;
+  my ($str, $mtime, $base) = @_;
   my $lto = link_to($str, $base);
-  return { link_to => $lto  } if $lto;
-  return { file    => $str };
+  return { link_to => $lto, mtime => $mtime } if $lto;
+  return { file    => $str, mtime => $mtime };
 }
 
 sub parse_json {
