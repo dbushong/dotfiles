@@ -50,6 +50,7 @@ use URI;
 
 ## Optional Modules
 my $grok_json  = eval { require JSON       };
+my $grok_yaml  = eval { require YAML       };
 my $grok_xpath = eval { require XML::XPath };
 my $grok_html  = $grok_xpath 
               && eval { require HTML::TreeBuilder };
@@ -96,6 +97,7 @@ my %handlers = (
     qr{(javascript|json)$}i => $grok_json  && \&build_json_tree,
     qr{xml$}                => $grok_xpath && \&build_xml_tree,
     qr{html$}               => $grok_html  && \&build_html_tree,
+    qr{yaml$}               => $grok_yaml  && \&build_yaml_tree,
   },
 );
 
@@ -281,7 +283,7 @@ sub file_or_link_to {
 
 sub parse_xml {
   my ($xml) = @_;
-  eval { ocache($xml, sub { XML::XPath->new(xml => $_[0]) }) };
+  ocache($xml, sub { XML::XPath->new(xml => $_[0]) });
 }
 
 sub html2xml {
@@ -290,8 +292,8 @@ sub html2xml {
 }
 
 sub ocache {
-  my ($tree, $gen) = @_;
-  $ocache{md5_base64(encode('utf-8', $tree))} ||= $gen->($tree);
+  my ($content, $gen) = @_;
+  $ocache{md5_base64(encode('utf-8', $content))} ||= eval { $gen->($content) };
 }
 
 sub handler_for {
@@ -349,30 +351,43 @@ sub build_html_tree {
 
 sub build_json_tree {
   my ($json, $url, @parts) = @_;
+  my $obj = ocache($json, sub { JSON::from_json($_[0]) }) || return undef;
+  build_obj_tree($obj, $url, sub {
+    my $str = $JSON->encode($_[0]);
+    $str =~ s/^"|"$//g;
+    $str;
+  }, @parts);
+}
 
-  my $tree = eval { ocache($json, sub { $JSON->decode($_[0]) }) } 
-    || return undef;
+sub build_yaml_tree {
+  my ($yaml, $url, @parts) = @_;
+  my $obj = ocache($yaml, sub { YAML::Load($_[0]) }) || return undef;
+  build_obj_tree($obj, $url, undef, @parts);
+}
+
+sub build_obj_tree {
+  my ($obj, $url, $output, @parts) = @_;
+  $output ||= sub { $_[0] };
+
   for (@parts) {
-    if (ref($tree) eq 'HASH') {
-      $tree = $tree->{$_};
+    if (ref($obj) eq 'HASH') {
+      $obj = $obj->{$_};
     }
-    elsif (ref($tree) eq 'ARRAY') {
-      $tree = $tree->[$_];
+    elsif (ref($obj) eq 'ARRAY') {
+      $obj = $obj->[$_];
     }
     else {
       return undef;
     }
   }
-  if (ref($tree) eq 'HASH') {
-    return { dir => [ map { encode_name($_) } keys %$tree ] };
+  if (ref($obj) eq 'HASH') {
+    return { dir => [ map { encode_name($_) } keys %$obj ] };
   }
-  elsif (ref($tree) eq 'ARRAY') {
-    return { dir => [ 0..$#$tree ] };
+  elsif (ref($obj) eq 'ARRAY') {
+    return { dir => [ 0..$#$obj ] };
   }
   else {
-    my $str = $JSON->encode($tree);
-    $str =~ s/^"|"$//g;
-    return file_or_link_to($str);
+    return file_or_link_to($output->($obj));
   }
 }
 
