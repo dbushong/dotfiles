@@ -2,6 +2,9 @@
 #
 # mount.restfs: mounts a "web filesystem" using fuse
 #
+# REQUIRED non-standard modules: Fuse, LWP::UserAgent, URI
+# OPTIONAL modules: XML::XPath, HTML::TreeBuilder, JSON
+#
 # assuming mount on /mnt, paths look like:
 #
 # /mnt/<encoded url>/<info>
@@ -30,20 +33,26 @@
 #
 # TODO: threading!
 
+## Standard Modules
 use strict;
 use warnings;
 use Getopt::Std;
 use File::Basename;
-use Fuse;
 use POSIX qw(:errno_h :fcntl_h ceil);
-use LWP::UserAgent;
-use URI;
-use JSON;
-use HTML::TreeBuilder;
-use XML::XPath;
-use Digest::MD5 'md5_base64';
 use Encode;
 use List::Util 'first';
+use Digest::MD5 'md5_base64';
+
+## Required Modules
+use Fuse;
+use LWP::UserAgent;
+use URI;
+
+## Optional Modules
+my $grok_json  = eval { require JSON       };
+my $grok_xpath = eval { require XML::XPath };
+my $grok_html  = $grok_xpath 
+              && eval { require HTML::TreeBuilder };
 
 ## Setup and Options
 my $prog = basename($0);
@@ -84,9 +93,9 @@ my %handlers = (
   # tree handlers take content and path parts and return a valid info hashref
   # or undef
   tree => {
-    qr{(javascript|json)$}i => \&build_json_tree,
-    qr{xml$}                => \&build_xml_tree,
-    qr{html$}               => \&build_html_tree,
+    qr{(javascript|json)$}i => $grok_json  && \&build_json_tree,
+    qr{xml$}                => $grok_xpath && \&build_xml_tree,
+    qr{html$}               => $grok_html  && \&build_html_tree,
   },
 );
 
@@ -192,15 +201,16 @@ sub parse_path {
     return { file => $content, mtime => $mtime };
   }
   elsif ($cmd eq 'url') {
-    return { file => $url, mtime => $mtime };
+    return { file => "$url\n", mtime => $mtime };
   }
   elsif ($cmd eq 'headers') {
     my $which = shift(@parts);
     if (defined $which) {
-      return { 
-        file  => scalar($res->header($which)), 
-        mtime => $mtime 
-      };
+      my $hdr  = $res->header($which);
+      return undef unless defined $hdr;
+      my $info = file_or_link_to($hdr);
+      $info->{mtime} = $mtime;
+      return $info;
     }
     else {
       return { dir => [ 
@@ -266,7 +276,7 @@ sub file_or_link_to {
   my ($str, $base) = @_;
   my $lto = link_to($str, $base);
   return { link_to => $lto } if $lto;
-  return { file    => $str };
+  return { file    => "$str\n" };
 }
 
 sub parse_xml {
@@ -300,16 +310,35 @@ sub find_text_links {
 sub find_html_links {
   my ($html) = @_;
 
-  my $obj = parse_xml(html2xml($html));
+  my @links;
+
+  # good xpathy version
+  if ($grok_html) {
+    my $obj = parse_xml(html2xml($html));
+    @links = map {
+      my $name = $_->string_value;
+      $name =~ s/^\s+|\s+$//g;
+      $name = 'untitled' unless length $name;
+      [ $name => scalar($_->getAttribute('href')) ];
+    } $obj->findnodes('//a[@href]');
+  }
+  # failover regexpy version
+  else {
+    while ($html =~ /<a [^>]*\bhref=["']?([^"'>]+)[^>]*>([^<]+)/g) {
+      my ($href, $name) = ($1, $2);
+      $name =~ s/^\s+|\s+$//g;
+      push(@links, [ $name => $href ]) if length $name && $href;
+    }
+  }
+
   my %links;
-  for my $a ($obj->findnodes('//a[@href]')) {
-    my $name = $a->string_value;
-    $name =~ s/^\s+|\s+$//g;
-    $name = 'untitled' unless length $name;
+  for (@links) {
+    my ($name, $href) = @$_;
     my ($base, $n);
     for ($base = $name, $n = 2; exists $links{$name}; $name = $base . $n++) {}
-    $links{$name} = $a->getAttribute('href');
+    $links{$name} = $href;
   }
+
   return %links;
 }
 
