@@ -9,6 +9,7 @@
 # where <encoded url> is a url with , replaced with %2C then / replaced with ,
 # so, e.g. /mnt/http:,,en.wikipedia.org,w,api.php?action=parse&page=Kittens
 # (shell escaping is left as an exercise to the reader)
+# (you can leave off the http:,, if it's not https)
 #
 # <info> consists of the following shared files:
 # content: result of the request
@@ -83,9 +84,9 @@ my %handlers = (
   # tree handlers take content and path parts and return a valid info hashref
   # or undef
   tree => {
-    qr{json$}i => \&build_json_tree,
-    qr{xml$}   => \&build_xml_tree,
-    qr{html$}  => \&build_html_tree,
+    qr{(javascript|json)$}i => \&build_json_tree,
+    qr{xml$}                => \&build_xml_tree,
+    qr{html$}               => \&build_html_tree,
   },
 );
 
@@ -141,7 +142,7 @@ sub rfs_getdir {
 
 sub rfs_open {
   my ($path, $flags) = @_;
-  my $info = parse_path($path);
+  my $info = parse_path($path, 1);
   # TODO: check flags
   return 0 if $info && !$info->{dir};
   return -EACCES();
@@ -155,42 +156,49 @@ sub rfs_read {
 
 ## Utility functions
 sub parse_path {
-  my ($path) = @_;
+  my ($path, $open) = @_;
   $path =~ s{(?<=[^/])/+$}{}; # trim off trailing /s
 
-  # top level dir: show our cached urls (handy)
-  return { dir => [map { encode_name($_) } keys %hcache] } if $path eq '/';
+  # top level dir: show our cached urls shortened (handy)
+  return { dir => [map { s,^http://,,; encode_name($_) } keys %hcache] } 
+    if $path eq '/';
 
-  # not a url at top-level?  bogus!
-  $path =~ m{^/(https?:,,[^/]+)/?} || return undef;
+  # skip system .file queries
+  return undef if $path =~ m{^/\.};
 
-  # decode url and grab rest of path
-  my $url = decode_name($1);
-  $path   = $';
+  # turn /foo/ba,r/baz -> ('foo', 'ba/r', 'baz')
+  my @parts = map { decode_name($_) } split(/\//, substr($path, 1));
 
-  my $res     = fetch_cached($url, $path eq 'content');
+  # decode url and normalize
+  my $url = shift(@parts);
+  $url = "http://$url" unless $url =~ m{^[a-z]+:};
+
+  # next component is optional cmd
+  my $cmd = shift(@parts) || '';
+
+  # perform fetch and set vars
+  my $res     = fetch_cached($url, $open && $cmd eq 'content');
   my $mtime   = $res->last_modified || time();
   my $content = $res->decoded_content;
-  my $type    = $res->header('Content-type');
-  $type =~ s/\s*;.*//;
+  my $type    = $res->header('Content-type'); $type =~ s/\s*;.*//;
 
-  if ($path eq '') {
+  if (!$cmd) {
     my @kids = qw(headers content url);  # shared virtual files/dirs
     push(@kids, 'links') if handler_for('links', $type);
     push(@kids, 'tree')  if handler_for('tree',  $type);
     return { dir => \@kids, mtime => $mtime };
   }
-  elsif ($path eq 'content') {
+  elsif ($cmd eq 'content') {
     return { file => $content, mtime => $mtime };
   }
-  elsif ($path eq 'url') {
+  elsif ($cmd eq 'url') {
     return { file => $url, mtime => $mtime };
   }
-  elsif ($path =~ m{^headers(?:/([^/]+))?$}) {
-    my $which = $1;
-    if ($which) {
+  elsif ($cmd eq 'headers') {
+    my $which = shift(@parts);
+    if (defined $which) {
       return { 
-        file  => scalar($res->header(decode_name($which))), 
+        file  => scalar($res->header($which)), 
         mtime => $mtime 
       };
     }
@@ -200,12 +208,12 @@ sub parse_path {
       ], mtime => $mtime };
     }
   }
-  elsif ($path =~ m{^links(?:/([^/]+))?$}) {
-    my $which   = $1;
+  elsif ($cmd eq 'links') {
+    my $which   = shift(@parts);
     my $handler = handler_for('links', $type) || return undef;
     my %links   = $handler->($content);
-    if ($which) {
-      my $lto = link_to($links{decode_name($which)}, $url) || return undef;
+    if (defined $which) {
+      my $lto = link_to($links{$which}, $url) || return undef;
       return { link_to => $lto, mtime => $mtime };
     }
     else {
@@ -214,8 +222,7 @@ sub parse_path {
       } keys %links ], mtime => $mtime };
     }
   }
-  elsif ($path =~ m{^tree(?:/(.+))?$}) {
-    my @parts      = map { decode_name($_) } split(/\//, $1 || '');
+  elsif ($cmd eq 'tree') {
     my $handler    = handler_for('tree', $type) || return undef;
     my $info       = $handler->($content, $url, @parts) || return undef;
     $info->{mtime} = $mtime;
@@ -244,7 +251,6 @@ sub fetch_cached {
     my $res = $hcache{$url};
     return $res if $res;
   }
-
   print "GET $url\n" unless $opt{d};
   $hcache{$url} = $ua->get($url);
 }
