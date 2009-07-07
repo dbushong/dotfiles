@@ -24,6 +24,9 @@
 # component corresponds to an object property (numbers for array indices),
 # and for html & xml it corresponds to an XPath
 #
+# Right now the only way to unmount is "fusermount -u /path/to/mntpt" which
+# will also make the script exit; ^C or killing the pid won't unmount the fs!
+#
 # TODO: threading!
 
 use strict;
@@ -41,18 +44,27 @@ use Digest::MD5 'md5_base64';
 use Encode;
 use List::Util 'first';
 
+## Setup and Options
 my $prog = basename($0);
 my %opt;
-getopts('hv', \%opt);
+getopts('hd', \%opt);
 usage() if $opt{h} || @ARGV != 1;
 sub usage {
   die <<EOU;
-usage: $prog [-v] mount-point
-       -v: verbose
+usage: $prog [-d] mount-point
+       -d: daemonize; default is to run in foreground with debugging
 EOU
 }
 
-my $prev_path;
+## Daemonizing
+if ($opt{d}) {
+  close(STDOUT);
+  close(STDIN);
+  close(STDERR);
+  fork and exit;
+}
+
+## Global var initialization
 my $JSON = JSON->new->allow_nonref(1);
 my $ua = LWP::UserAgent->new(agent => 'Firefox'); # TODO: add sexy useragent
 my %hcache; # TODO: replace with Tie::Cache::LRU or equiv.
@@ -60,13 +72,7 @@ my %ocache; # TODO: replace with Tie::Cache::LRU or equiv.
 my $mount = $ARGV[0]; $mount =~ s,/+$,,;
 die "No such directory $mount\n" unless -d $mount;
 
-my %mime_map = (
-  'text/javascript' => 'application/json',
-  'text/json'       => 'application/json',
-  'application/xml' => 'text/xml',
-  'text/xhtml'      => 'text/html',
-);
-
+## Extensible handler configuration
 my %handlers = (
   # links handlers take content and return a hash of name => links
   # names must (obviously) be unique, and links may be relative strings
@@ -83,6 +89,7 @@ my %handlers = (
   },
 );
 
+## Run filesystem
 Fuse::main(
   mountpoint   => $mount,
   debug        => 0,
@@ -94,8 +101,10 @@ Fuse::main(
   'read'       => \&rfs_read,
 );
 
+exit; # never reached?
+
+## Filesystem calbacks
 sub rfs_getattr {
-  #print "getattr()\n" if $opt{v};
   my $info    = parse_path(@_) || return -ENOENT();
   my $mtime   = $info->{mtime} || time();
   my $size    = $info->{file} ? length($info->{file}) : 0;
@@ -120,20 +129,17 @@ sub rfs_getattr {
 }
 
 sub rfs_readlink {
-  #print "readlink()\n" if $opt{v};
   my $info = parse_path(@_);
   $info && $info->{link_to};
 }
 
 sub rfs_getdir {
-  #print "getdir()\n" if $opt{v};
   my $info = parse_path(@_) || return -ENOENT();
   return -ENOTDIR() unless $info->{dir};
   ('.', '..', @{$info->{dir}}, 0);
 }
 
 sub rfs_open {
-  #print "open()\n" if $opt{v};
   my ($path, $flags) = @_;
   my $info = parse_path($path);
   # TODO: check flags
@@ -142,19 +148,15 @@ sub rfs_open {
 }
 
 sub rfs_read {
-  #print "read()\n" if $opt{v};
   my ($path, $bytes, $off) = @_;
   my $info = parse_path($path) || return -ENOENT();
   substr($info->{file}, $off, $bytes);
 }
 
+## Utility functions
 sub parse_path {
   my ($path) = @_;
   $path =~ s{(?<=[^/])/+$}{}; # trim off trailing /s
-
-  #print "PATH $path\n" 
-  #  if $opt{v} && !(defined $prev_path && $path eq $prev_path);
-  #$prev_path = $path;
 
   # top level dir: show our cached urls (handy)
   return { dir => [map { encode_name($_) } keys %hcache] } if $path eq '/';
@@ -243,30 +245,8 @@ sub fetch_cached {
     return $res if $res;
   }
 
-  print "GET $url\n";
+  print "GET $url\n" unless $opt{d};
   $hcache{$url} = $ua->get($url);
-}
-
-sub find_text_links {
-  my ($content) = @_;
-  my @urls = sort ($content =~ m{\bhttp://[^\s"'<>]+}g);
-  return map { 'untitled'.($_+1) => $urls[$_] } 0..$#urls;
-}
-
-sub find_html_links {
-  my ($html) = @_;
-
-  my $obj = parse_xml(html2xml($html));
-  my %links;
-  for my $a ($obj->findnodes('//a[@href]')) {
-    my $name = $a->string_value;
-    $name =~ s/^\s+|\s+$//g;
-    $name = 'untitled' unless length $name;
-    my ($base, $n);
-    for ($base = $name, $n = 2; exists $links{$name}; $name = $base . $n++) {}
-    $links{$name} = $a->getAttribute('href');
-  }
-  return %links;
 }
 
 sub link_to {
@@ -302,6 +282,29 @@ sub handler_for {
   my ($thing, $type) = @_;
   my $key = (first { $type =~ $_ } keys(%{$handlers{$thing}})) || return undef;
   $handlers{$thing}{$key};
+}
+
+sub find_text_links {
+  my ($content) = @_;
+  my @urls = sort ($content =~ m{\bhttp://[^\s"'<>]+}g);
+  return map { 'untitled'.($_+1) => $urls[$_] } 0..$#urls;
+}
+
+## Handler implementations
+sub find_html_links {
+  my ($html) = @_;
+
+  my $obj = parse_xml(html2xml($html));
+  my %links;
+  for my $a ($obj->findnodes('//a[@href]')) {
+    my $name = $a->string_value;
+    $name =~ s/^\s+|\s+$//g;
+    $name = 'untitled' unless length $name;
+    my ($base, $n);
+    for ($base = $name, $n = 2; exists $links{$name}; $name = $base . $n++) {}
+    $links{$name} = $a->getAttribute('href');
+  }
+  return %links;
 }
 
 sub build_html_tree {
