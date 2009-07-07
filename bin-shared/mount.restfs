@@ -8,7 +8,7 @@
 #
 # where <encoded url> is a url with , replaced with %2C then / replaced with ,
 # so, e.g. /mnt/http:,,en.wikipedia.org,w,api.php?action=parse&page=Kittens
-# (shell escaping is your problem)
+# (shell escaping is left as an exercise to the reader)
 #
 # <info> consists of the following shared files:
 # content: result of the request
@@ -21,7 +21,8 @@
 # /mnt/<encoded-url>/tree/<tree-path>
 #
 # <tree-path> varies depending on the encoding, but for JSON each path
-# component corresponds to an object property (numbers for array indices)
+# component corresponds to an object property (numbers for array indices),
+# and for html & xml it corresponds to an XPath
 #
 # TODO: threading!
 
@@ -38,6 +39,7 @@ use HTML::TreeBuilder;
 use XML::XPath;
 use Digest::MD5 'md5_base64';
 use Encode;
+use List::Util 'first';
 
 my $prog = basename($0);
 my %opt;
@@ -65,6 +67,22 @@ my %mime_map = (
   'text/xhtml'      => 'text/html',
 );
 
+my %handlers = (
+  # links handlers take content and return a hash of name => links
+  # names must (obviously) be unique, and links may be relative strings
+  links => {
+    qr{^text/plain$}i => \&find_text_links,
+    qr{html$}i        => \&find_html_links
+  },
+  # tree handlers take content and path parts and return a valid info hashref
+  # or undef
+  tree => {
+    qr{json$}i => \&build_json_tree,
+    qr{xml$}   => \&build_xml_tree,
+    qr{html$}  => \&build_html_tree,
+  },
+);
+
 Fuse::main(
   mountpoint   => $mount,
   debug        => 0,
@@ -77,41 +95,45 @@ Fuse::main(
 );
 
 sub rfs_getattr {
-  print "getattr()\n" if $opt{v};
+  #print "getattr()\n" if $opt{v};
   my $info    = parse_path(@_) || return -ENOENT();
   my $mtime   = $info->{mtime} || time();
   my $size    = $info->{file} ? length($info->{file}) : 0;
-  my $blksize = 1024;
+  my $blksize = 1024 * 1024;
   my $blocks  = ceil($size / $blksize);
-  my $mode;
+  my $type;
   if ($info->{dir}) {
-    $mode = 0040; 
+    $type = 0040; 
   }
   elsif ($info->{link_to}) {
-    $mode = 0120;
+    $type = 0120;
+  }
+  elsif (exists $info->{file}) {
+    $type = 0100;
   }
   else {
-    $mode = 0100;
+    warn "unknown reponse from parse_path()\n";
+    return -ENOENT();
   }
-  $mode = ($mode << 9) + 0444;
+  my $mode = 0444 + ($type << 9); # world-readable + type of file
   (0, 0, $mode, 1, 0, 0, 0, $size, time(), $mtime, $mtime, $blksize, $blocks);
 }
 
 sub rfs_readlink {
-  print "readlink()\n" if $opt{v};
+  #print "readlink()\n" if $opt{v};
   my $info = parse_path(@_);
   $info && $info->{link_to};
 }
 
 sub rfs_getdir {
-  print "getdir()\n" if $opt{v};
+  #print "getdir()\n" if $opt{v};
   my $info = parse_path(@_) || return -ENOENT();
   return -ENOTDIR() unless $info->{dir};
   ('.', '..', @{$info->{dir}}, 0);
 }
 
 sub rfs_open {
-  print "open()\n" if $opt{v};
+  #print "open()\n" if $opt{v};
   my ($path, $flags) = @_;
   my $info = parse_path($path);
   # TODO: check flags
@@ -120,7 +142,7 @@ sub rfs_open {
 }
 
 sub rfs_read {
-  print "read()\n" if $opt{v};
+  #print "read()\n" if $opt{v};
   my ($path, $bytes, $off) = @_;
   my $info = parse_path($path) || return -ENOENT();
   substr($info->{file}, $off, $bytes);
@@ -130,9 +152,9 @@ sub parse_path {
   my ($path) = @_;
   $path =~ s{(?<=[^/])/+$}{}; # trim off trailing /s
 
-  print "PATH $path\n" 
-    if $opt{v} && !(defined $prev_path && $path eq $prev_path);
-  $prev_path = $path;
+  #print "PATH $path\n" 
+  #  if $opt{v} && !(defined $prev_path && $path eq $prev_path);
+  #$prev_path = $path;
 
   # top level dir: show our cached urls (handy)
   return { dir => [map { encode_name($_) } keys %hcache] } if $path eq '/';
@@ -144,21 +166,20 @@ sub parse_path {
   my $url = decode_name($1);
   $path   = $';
 
-  my $res   = fetch_cached($url, $path eq 'content');
-  my $mtime = $res->last_modified || time();
-  my $type  = $res->header('Content-type');
+  my $res     = fetch_cached($url, $path eq 'content');
+  my $mtime   = $res->last_modified || time();
+  my $content = $res->decoded_content;
+  my $type    = $res->header('Content-type');
   $type =~ s/\s*;.*//;
-  $type = $mime_map{$type} || $type;
-  my $raw  = $res->decoded_content;
 
   if ($path eq '') {
-    my @kids = qw(headers content url);
-    push(@kids, 'links') if $type eq 'text/html' || $type eq 'text/plain';
-    push(@kids, 'tree')  if $type =~ m{^(text/(ht|x)ml|application/json)$};
+    my @kids = qw(headers content url);  # shared virtual files/dirs
+    push(@kids, 'links') if handler_for('links', $type);
+    push(@kids, 'tree')  if handler_for('tree',  $type);
     return { dir => \@kids, mtime => $mtime };
   }
   elsif ($path eq 'content') {
-    return { file => $raw, mtime => $mtime };
+    return { file => $content, mtime => $mtime };
   }
   elsif ($path eq 'url') {
     return { file => $url, mtime => $mtime };
@@ -178,85 +199,25 @@ sub parse_path {
     }
   }
   elsif ($path =~ m{^links(?:/([^/]+))?$}) {
-    my $which = $1;
-    my %links = find_links($type, $raw);
+    my $which   = $1;
+    my $handler = handler_for('links', $type) || return undef;
+    my %links   = $handler->($content);
     if ($which) {
       my $lto = link_to($links{decode_name($which)}, $url) || return undef;
       return { link_to => $lto, mtime => $mtime };
     }
     else {
-      return { dir => [ map { encode_name($_) } keys %links ], mtime => $mtime };
+      return { dir => [ map { encode_name($_) } grep {
+        link_to($links{$_}, $url)
+      } keys %links ], mtime => $mtime };
     }
   }
   elsif ($path =~ m{^tree(?:/(.+))?$}) {
-    my @parts = map { decode_name($_) } split(/\//, $1 || '');
-    if ($type eq 'application/json') {
-      my $tree = parse_json($raw);
-      for (@parts) {
-        if (ref($tree) eq 'HASH') {
-          $tree = $tree->{$_};
-        }
-        elsif (ref($tree) eq 'ARRAY') {
-          $tree = $tree->[$_];
-        }
-        else {
-          return undef;
-        }
-      }
-      if (ref($tree) eq 'HASH') {
-        return { dir => [ map { encode_name($_) } keys %$tree ], mtime=>$mtime };
-      }
-      elsif (ref($tree) eq 'ARRAY') {
-        return { dir => [ 0..$#$tree ], mtime => $mtime };
-      }
-      else {
-        my $str = $JSON->encode($tree);
-        $str =~ s/^"|"$//g;
-        return file_or_link_to($str, $mtime);
-      }
-    }
-    elsif ($type =~ m{^text/(html|xml)$}) {
-      $path = '/' . join('/', @parts);
-      my $xp = (($type =~ /html/) ? parse_html($raw) : parse_xml($raw))
-        || return undef;
-      my $ns = eval { $xp->find($path) };
-      return undef unless $ns && $ns->size;
-      my $node = $ns->get_node(1);
-      if ($node->isa('XML::XPath::Node::Element')) {
-        my (%kids, %count);
-        for my $kid ($node->getChildNodes()) {
-          if (my $name = $kid->getName) {
-            if ($count{$name}++) {
-              if ($count{$name} == 2) {
-                $kids{$name.'[1]'} = 1;
-                delete $kids{$name};
-              }
-              $kids{$name.'['.$count{$name}.']'} = 1;
-            }
-            else {
-              $kids{$name} = 1;
-            }
-          }
-          else {
-            $kids{'text()'} = 1;
-          }
-        }
-        return { dir => [ map { encode_name($_) } 
-          keys(%kids),
-          map { '@' . $_->getName } $node->getAttributes()
-        ], mtime => $mtime};
-      }
-      elsif ($node->isa('XML::XPath::Node::Attribute')) {
-        return file_or_link_to($node->getNodeValue, $mtime,
-          ($node->getName =~ /^(href|src)$/i) && $url);
-      }
-      elsif ($node->isa('XML::XPath::Node::Text')) {
-        return file_or_link_to($node->getValue, $mtime);
-      }
-      else {
-        return undef;
-      }
-    }
+    my @parts      = map { decode_name($_) } split(/\//, $1 || '');
+    my $handler    = handler_for('tree', $type) || return undef;
+    my $info       = $handler->($content, $url, @parts) || return undef;
+    $info->{mtime} = $mtime;
+    return $info;
   }
 }
 
@@ -282,28 +243,30 @@ sub fetch_cached {
     return $res if $res;
   }
 
+  print "GET $url\n";
   $hcache{$url} = $ua->get($url);
 }
 
-sub find_links {
-  my ($type, $raw) = @_;
-  if ($type eq 'text/plain') {
-    my @urls = sort ($raw =~ m{\bhttp://[^\s"'<>]+}g);
-    return map { 'untitled'.($_+1) => $urls[$_] } 0..$#urls;
+sub find_text_links {
+  my ($content) = @_;
+  my @urls = sort ($content =~ m{\bhttp://[^\s"'<>]+}g);
+  return map { 'untitled'.($_+1) => $urls[$_] } 0..$#urls;
+}
+
+sub find_html_links {
+  my ($html) = @_;
+
+  my $obj = parse_xml(html2xml($html));
+  my %links;
+  for my $a ($obj->findnodes('//a[@href]')) {
+    my $name = $a->string_value;
+    $name =~ s/^\s+|\s+$//g;
+    $name = 'untitled' unless length $name;
+    my ($base, $n);
+    for ($base = $name, $n = 2; exists $links{$name}; $name = $base . $n++) {}
+    $links{$name} = $a->getAttribute('href');
   }
-  elsif ($type eq 'text/html') {
-    my $obj = parse_html($raw);
-    my %links;
-    for my $a ($obj->findnodes('//a[@href]')) {
-      my $name = $a->string_value;
-      $name =~ s/^\s+|\s+$//g;
-      $name = 'untitled' unless length $name;
-      my ($base, $n);
-      for ($base = $name, $n = 2; exists $links{$name}; $name = $base . $n++) {}
-      $links{$name} = $a->getAttribute('href');
-    }
-    return %links;
-  }
+  return %links;
 }
 
 sub link_to {
@@ -314,30 +277,107 @@ sub link_to {
 }
 
 sub file_or_link_to {
-  my ($str, $mtime, $base) = @_;
+  my ($str, $base) = @_;
   my $lto = link_to($str, $base);
-  return { link_to => $lto, mtime => $mtime } if $lto;
-  return { file    => $str, mtime => $mtime };
-}
-
-sub parse_json {
-  my ($json) = @_;
-  ocache($json, sub { $JSON->decode($_[0]) });
+  return { link_to => $lto } if $lto;
+  return { file    => $str };
 }
 
 sub parse_xml {
   my ($xml) = @_;
-  ocache($xml, sub { XML::XPath->new(xml => $_[0]) });
+  eval { ocache($xml, sub { XML::XPath->new(xml => $_[0]) }) };
 }
 
-sub parse_html {
+sub html2xml {
   my ($html) = @_;
-  ocache($html, sub {
-    XML::XPath->new(xml => HTML::TreeBuilder->new_from_content($_[0])->as_XML)
-  });
+  ocache($html, sub { HTML::TreeBuilder->new_from_content($_[0])->as_XML });
 }
 
 sub ocache {
   my ($tree, $gen) = @_;
   $ocache{md5_base64(encode('utf-8', $tree))} ||= $gen->($tree);
+}
+
+sub handler_for {
+  my ($thing, $type) = @_;
+  my $key = (first { $type =~ $_ } keys(%{$handlers{$thing}})) || return undef;
+  $handlers{$thing}{$key};
+}
+
+sub build_html_tree {
+  my ($html, $url, @parts) = @_;
+  build_xml_tree(html2xml($html), $url, @parts);
+}
+
+sub build_json_tree {
+  my ($json, $url, @parts) = @_;
+
+  my $tree = eval { ocache($json, sub { $JSON->decode($_[0]) }) } 
+    || return undef;
+  for (@parts) {
+    if (ref($tree) eq 'HASH') {
+      $tree = $tree->{$_};
+    }
+    elsif (ref($tree) eq 'ARRAY') {
+      $tree = $tree->[$_];
+    }
+    else {
+      return undef;
+    }
+  }
+  if (ref($tree) eq 'HASH') {
+    return { dir => [ map { encode_name($_) } keys %$tree ] };
+  }
+  elsif (ref($tree) eq 'ARRAY') {
+    return { dir => [ 0..$#$tree ] };
+  }
+  else {
+    my $str = $JSON->encode($tree);
+    $str =~ s/^"|"$//g;
+    return file_or_link_to($str);
+  }
+}
+
+sub build_xml_tree {
+  my ($xml, $url, @parts) = @_;
+
+  my $path = '/' . join('/', @parts);
+  my $xp = parse_xml($xml) || return undef;
+  my $ns = eval { $xp->find($path) };
+  return undef unless $ns && $ns->size;
+  my $node = $ns->get_node(1);
+  if ($node->isa('XML::XPath::Node::Element')) {
+    my (%kids, %count);
+    for my $kid ($node->getChildNodes()) {
+      if (my $name = $kid->getName) {
+        if ($count{$name}++) {
+          if ($count{$name} == 2) {
+            $kids{$name.'[1]'} = 1;
+            delete $kids{$name};
+          }
+          $kids{$name.'['.$count{$name}.']'} = 1;
+        }
+        else {
+          $kids{$name} = 1;
+        }
+      }
+      else {
+        $kids{'text()'} = 1;
+      }
+    }
+    return { dir => [ map { encode_name($_) } 
+      keys(%kids),
+      map { '@' . $_->getName } $node->getAttributes()
+    ]};
+  }
+  elsif ($node->isa('XML::XPath::Node::Attribute')) {
+    return file_or_link_to($node->getNodeValue,
+      ($node->getName =~ /^(href|src)$/i) && $url);
+  }
+  elsif ($node->isa('XML::XPath::Node::Text')) {
+    return file_or_link_to($node->getValue);
+  }
+  else {
+    return undef;
+  }
 }
