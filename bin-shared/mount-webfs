@@ -1,0 +1,225 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Getopt::Std;
+use File::Basename;
+use Fuse;
+use POSIX qw(:errno_h :fcntl_h ceil);
+use LWP::UserAgent;
+use URI;
+use JSON;
+
+my $prog = basename($0);
+my %opt;
+getopts('h', \%opt);
+usage() if $opt{h} || @ARGV != 1;
+sub usage {
+  die <<EOU;
+usage: $prog mount-point
+EOU
+}
+
+my $prev_path;
+my $JSON = JSON->new->allow_nonref(1);
+my $ua = LWP::UserAgent->new(agent => 'Firefox'); # TODO: add sexy useragent
+my %cache; # TODO: replace with Tie::Cache::LRU or equiv.
+my $mount = $ARGV[0]; $mount =~ s,/+$,,;
+die "No such directory $mount\n" unless -d $mount;
+
+my %mime_map = (
+  'text/javascript' => 'application/json',
+  'text/json'       => 'application/json',
+  'application/xml' => 'text/xml',
+  'text/xhtml'      => 'text/html',
+);
+
+Fuse::main(
+  mountpoint   => $mount,
+  debug        => 0,
+  threaded     => 0,
+  'getattr'    => \&wfs_getattr,
+  'readlink'   => \&wfs_readlink,
+  'getdir'     => \&wfs_getdir,
+  'open'       => \&wfs_open,
+  'read'       => \&wfs_read,
+);
+
+sub wfs_getattr {
+  print "getattr\n";
+  my $info    = parse_path(@_) || return -ENOENT();
+  my $mtime   = $info->{mtime} || 0;
+  my $size    = $info->{data} ? length($info->{data}) : 0;
+  my $blksize = 1024;
+  my $blocks  = ceil($size / $blksize);
+  my $mode;
+  if ($info->{kids}) {
+    $mode = 0040; 
+  }
+  elsif ($info->{link_to}) {
+    $mode = 0120;
+  }
+  else {
+    $mode = 0100;
+  }
+  $mode = ($mode << 9) + 0444;
+  (0, 0, $mode, 1, 0, 0, 0, $size, time(), $mtime, $mtime, $blksize, $blocks);
+}
+
+sub wfs_readlink {
+  print "readlink\n";
+  my $info = parse_path(@_);
+  $info && $info->{link_to};
+}
+
+sub wfs_getdir {
+  print "getdir\n";
+  my $info = parse_path(@_) || return -ENOENT();
+  return -ENOTDIR() unless $info->{kids};
+  ('.', '..', @{$info->{kids}}, 0);
+}
+
+sub wfs_open {
+  print "open\n";
+  my ($path, $flags) = @_;
+  my $info = parse_path($path);
+  # TODO: check flags
+  return 0 if $info && !$info->{kids};
+  return -EACCES();
+}
+
+sub wfs_read {
+  print "read\n";
+  my ($path, $bytes, $off) = @_;
+  my $info = parse_path($path, 1) || return -ENOENT();
+  substr($info->{data}, $off, $bytes);
+}
+
+sub parse_path {
+  my ($path, $force) = @_;
+  $path =~ s{/\.(/|$)}{$1}g;
+  $path =~ s{/([^/]*)/\.\.(/|$)}{$1$2}g;
+  $path =~ s{(?<=[^/])/+$}{};
+
+  print "$path\n" unless defined $prev_path && $path eq $prev_path;
+  $prev_path = $path;
+
+  # top level dir: show our cached urls (handy)
+  return { kids => [map { encode_url($_) } keys %cache] } if $path eq '/';
+
+  # not a url at top-level?  bogus!
+  $path =~ m{^/(https?:__[^/]+)/?} || return undef;
+
+  # decode url and grab rest of path
+  my $url = decode_url($1);
+  $path   = $';
+
+  my $res  = fetch_cached($url, $force);
+  my $type = $res->header('Content-type');
+  $type =~ s/\s*;.*//;
+  $type = $mime_map{$type} || $type;
+  my $raw  = $res->decoded_content;
+
+  if ($path eq '') {
+    my @kids = qw(type raw url);
+    push(@kids, 'links')   if $type eq 'text/html' || $type eq 'text/plain';
+    push(@kids, 'content') if $type eq 'text/xml' ||$type eq 'application/json';
+    return { kids => \@kids };
+  }
+  elsif ($path eq 'type') {
+    return { data => $type };
+  }
+  elsif ($path eq 'raw') {
+    return { data => $raw };
+  }
+  elsif ($path eq 'url') {
+    return { data => $url };
+  }
+  elsif ($path =~ m{^links(?:/([^/]+))?$}) {
+    my $which = $1;
+    my %links = find_links($type, $raw);
+    if ($which) {
+      my $lto = link_to($links{$which}) || return undef;
+      return { link_to => $lto };
+    }
+    else {
+      return { kids => [ keys %links ] };
+    }
+  }
+  elsif ($path =~ m{^content(?:/(.+))?$}) {
+    my @parts = map { decode_url($_) } split(/\//, $1 || '');
+    if ($type eq 'application/json') {
+      my $content = $JSON->decode($raw);
+      for (@parts) {
+        if (ref($content) eq 'HASH') {
+          $content = $content->{$_};
+        }
+        elsif (ref($content) eq 'ARRAY') {
+          $content = $content->[$_];
+        }
+        else {
+          return undef;
+        }
+      }
+      if (ref($content) eq 'HASH') {
+        return { kids => [ map { encode_url($_) } keys %$content ] };
+      }
+      elsif (ref($content) eq 'ARRAY') {
+        return { kids => [ 0..$#$content ] };
+      }
+      else {
+        my $str = $JSON->encode($content);
+        $str =~ s/^"|"$//g;
+        my $lto = link_to($str);
+        return { link_to => $lto } if $lto;
+        return { data    => $str };
+      }
+    }
+    elsif ($type =~ m{^text/(html|xml)$}) {
+      # TODO xpathy goodness
+    }
+  }
+}
+
+sub decode_url {
+  my ($str) = @_;
+  $str =~ s,_,/,g;
+  $str =~ s/\%5f/_/g;
+  $str;
+}
+
+sub encode_url {
+  my ($url) = @_;
+  $url =~ s/_/\%5f/g;
+  $url =~ s,/,_,g;
+  $url;
+}
+
+sub fetch_cached {
+  my ($url, $force) = @_;
+
+  unless ($force) {
+    my $res = $cache{$url};
+    return $res if $res;
+  }
+
+  $cache{$url} = $ua->get($url);
+}
+
+sub find_links {
+  my ($type, $raw) = @_;
+  if ($type eq 'text/plain') {
+    my @urls = sort ($raw =~ m{\bhttp://[^\s"'<>]+}g);
+    return map { 'untitled'.($_+1) => $urls[$_] } 0..$#urls;
+  }
+  elsif ($type eq 'text/html') {
+    # TODO -- extract links from html (with xpath?)
+    return ();
+  }
+}
+
+sub link_to {
+  my ($str) = @_;
+  return undef unless $str =~ m{^https?://\S+$};
+  return $mount . '/' . encode_url($str);
+}
