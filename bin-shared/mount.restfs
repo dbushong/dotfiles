@@ -6,8 +6,8 @@
 #
 # /mnt/<encoded url>/<info>
 #
-# where <encoded url> is a url with _ replaced with %5F then / replaced with _
-# so, e.g. /mnt/http:__en.wikipedia.org_w_api.php?action=parse&page=Kittens
+# where <encoded url> is a url with , replaced with %2C then / replaced with ,
+# so, e.g. /mnt/http:,,en.wikipedia.org,w,api.php?action=parse&page=Kittens
 # (shell escaping is your problem)
 #
 # <info> consists of the following shared files:
@@ -138,7 +138,7 @@ sub parse_path {
   return { dir => [map { encode_name($_) } keys %hcache] } if $path eq '/';
 
   # not a url at top-level?  bogus!
-  $path =~ m{^/(https?:__[^/]+)/?} || return undef;
+  $path =~ m{^/(https?:,,[^/]+)/?} || return undef;
 
   # decode url and grab rest of path
   my $url = decode_name($1);
@@ -262,15 +262,15 @@ sub parse_path {
 
 sub decode_name {
   my ($str) = @_;
-  $str =~ s,_,/,g;
-  $str =~ s/\%5f/_/ig;
+  $str =~ s#,#/#g;
+  $str =~ s/\%2C/,/ig;
   $str;
 }
 
 sub encode_name {
   my ($url) = @_;
-  $url =~ s/_/\%5f/g;
-  $url =~ s,/,_,g;
+  $url =~ s/,/\%2C/g;
+  $url =~ s#/#,#g;
   $url;
 }
 
