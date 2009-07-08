@@ -10,7 +10,7 @@
 # /mnt/<encoded url>/<info>
 #
 # where <encoded url> is a url with , replaced with %2C then / replaced with ,
-# so, e.g. /mnt/http:,,en.wikipedia.org,w,api.php?action=parse&page=Kittens
+# so, e.g. /mnt/en.wikipedia.org,w,api.php?action=parse&page=Kittens
 # (shell escaping is left as an exercise to the reader)
 # (you can leave off the http:,, if it's not https)
 #
@@ -119,7 +119,7 @@ exit; # never reached?
 sub rfs_getattr {
   my $info    = parse_path(@_) || return -ENOENT();
   my $mtime   = $info->{mtime} || time();
-  my $size    = $info->{file} ? length($info->{file}) : 0;
+  my $size    = $info->{file} ? length(encode('utf-8', $info->{file})) : 0;
   my $blksize = 1024 * 1024;
   my $blocks  = ceil($size / $blksize);
   my $type;
@@ -162,7 +162,7 @@ sub rfs_open {
 sub rfs_read {
   my ($path, $bytes, $off) = @_;
   my $info = parse_path($path) || return -ENOENT();
-  substr($info->{file}, $off, $bytes);
+  substr(encode('utf-8', $info->{file}), $off, $bytes);
 }
 
 ## Utility functions
