@@ -102,7 +102,7 @@ my %handlers = (
     qr{xml$}i                     => $grok_xpath && \&build_xml_tree,
     qr{html$}i                    => $grok_html  && \&build_html_tree,
     qr{/(x-)?yaml$}i              => $grok_yaml  && \&build_yaml_tree,
-    qr{/css$}i                    => $grok_css   && \&build_css_tree,
+    qr{/css$}i                    => 0 && $grok_css   && \&build_css_tree,
   },
 );
 
