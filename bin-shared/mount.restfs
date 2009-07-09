@@ -3,7 +3,7 @@
 # mount.restfs: mounts a "web filesystem" using fuse
 #
 # REQUIRED non-standard modules: Fuse, LWP::UserAgent, URI
-# OPTIONAL modules: XML::XPath, HTML::TreeBuilder, JSON
+# OPTIONAL modules: XML::XPath, HTML::TreeBuilder, JSON, CSS
 #
 # assuming mount on /mnt, paths look like:
 #
@@ -42,6 +42,8 @@ use POSIX qw(:errno_h :fcntl_h ceil);
 use Encode;
 use List::Util 'first';
 use Digest::MD5 'md5_base64';
+use threads;
+use threads::shared;
 
 ## Required Modules
 use Fuse;
@@ -49,6 +51,7 @@ use LWP::UserAgent;
 use URI;
 
 ## Optional Modules
+my $grok_css   = eval { require CSS        };
 my $grok_json  = eval { require JSON       };
 my $grok_yaml  = eval { require YAML       };
 my $grok_xpath = eval { require XML::XPath };
@@ -78,7 +81,7 @@ if ($opt{d}) {
 ## Global var initialization
 my $JSON = JSON->new->allow_nonref(1);
 my $ua = LWP::UserAgent->new(agent => 'Firefox'); # TODO: add sexy useragent
-my %hcache; # TODO: replace with Tie::Cache::LRU or equiv.
+my %hcache :shared; # TODO: replace with Tie::Cache::LRU or equiv.
 my %ocache; # TODO: replace with Tie::Cache::LRU or equiv.
 my $mount = $ARGV[0]; $mount =~ s,/+$,,;
 die "No such directory $mount\n" unless -d $mount;
@@ -89,15 +92,17 @@ my %handlers = (
   # names must (obviously) be unique, and links may be relative strings
   links => {
     qr{^text/plain$}i => \&find_text_links,
-    qr{html$}i        => \&find_html_links
+    qr{html$}i        => \&find_html_links,
+    qr{/css$}i        => \&find_css_links,
   },
   # tree handlers take content and path parts and return a valid info hashref
   # or undef
   tree => {
-    qr{(javascript|json)$}i => $grok_json  && \&build_json_tree,
-    qr{xml$}                => $grok_xpath && \&build_xml_tree,
-    qr{html$}               => $grok_html  && \&build_html_tree,
-    qr{yaml$}               => $grok_yaml  && \&build_yaml_tree,
+    qr{/(javascript|(x-)?json)$}i => $grok_json  && \&build_json_tree,
+    qr{xml$}i                     => $grok_xpath && \&build_xml_tree,
+    qr{html$}i                    => $grok_html  && \&build_html_tree,
+    qr{/(x-)?yaml$}i              => $grok_yaml  && \&build_yaml_tree,
+    qr{/css$}i                    => $grok_css   && \&build_css_tree,
   },
 );
 
@@ -105,23 +110,24 @@ my %handlers = (
 Fuse::main(
   mountpoint   => $mount,
   debug        => 0,
-  threaded     => 0,
-  'getattr'    => \&rfs_getattr,
-  'readlink'   => \&rfs_readlink,
-  'getdir'     => \&rfs_getdir,
-  'open'       => \&rfs_open,
-  'read'       => \&rfs_read,
+  threaded     => 1,
+  'getattr'    => 'main::rfs_getattr',
+  'readlink'   => 'main::rfs_readlink',
+  'getdir'     => 'main::rfs_getdir',
+  'open'       => 'main::rfs_open',
+  'read'       => 'main::rfs_read',
 );
 
 exit; # never reached?
 
 ## Filesystem calbacks
 sub rfs_getattr {
-  my $info    = parse_path(@_) || return -ENOENT();
-  my $mtime   = $info->{mtime} || time();
-  my $size    = $info->{file} ? length(encode('utf-8', $info->{file})) : 0;
-  my $blksize = 1024 * 1024;
-  my $blocks  = ceil($size / $blksize);
+  my $info     = parse_path(@_) || return -ENOENT();
+  my $mtime    = $info->{mtime} || time();
+  my $contents = file_contents($info);
+  my $size     = defined($contents) ? length($contents) : 0;
+  my $blksize  = 1024 * 1024;
+  my $blocks   = ceil($size / $blksize);
   my $type;
   if ($info->{dir}) {
     $type = 0040; 
@@ -129,7 +135,7 @@ sub rfs_getattr {
   elsif ($info->{link_to}) {
     $type = 0120;
   }
-  elsif (exists $info->{file}) {
+  elsif (defined $contents) {
     $type = 0100;
   }
   else {
@@ -148,7 +154,7 @@ sub rfs_readlink {
 sub rfs_getdir {
   my $info = parse_path(@_) || return -ENOENT();
   return -ENOTDIR() unless $info->{dir};
-  ('.', '..', @{$info->{dir}}, 0);
+  ('.', '..', map { encode_name($_) } @{$info->{dir}}, 0);
 }
 
 sub rfs_open {
@@ -161,17 +167,25 @@ sub rfs_open {
 
 sub rfs_read {
   my ($path, $bytes, $off) = @_;
-  my $info = parse_path($path) || return -ENOENT();
-  substr(encode('utf-8', $info->{file}), $off, $bytes);
+  my $info     = parse_path($path)    || return -ENOENT();
+  my $contents = file_contents($info) || return -ENOENT();
+  substr($contents, $off, $bytes);
 }
 
 ## Utility functions
+sub file_contents {
+  my ($info) = @_;
+  my $file = $info->{file};
+  return undef unless defined $file;
+  Encode::is_utf8($file) ? encode('utf-8', $file) : $file;
+}
+
 sub parse_path {
   my ($path, $open) = @_;
   $path =~ s{(?<=[^/])/+$}{}; # trim off trailing /s
 
   # top level dir: show our cached urls shortened (handy)
-  return { dir => [map { s,^http://,,; encode_name($_) } keys %hcache] } 
+  return { dir => [map { s,^http://,,; $_ } keys %hcache] } 
     if $path eq '/';
 
   # skip system .file queries
@@ -215,23 +229,34 @@ sub parse_path {
       return $info;
     }
     else {
-      return { dir => [ 
-        map { encode_name($_) } $res->header_field_names
-      ], mtime => $mtime };
+      return { dir => [ $res->header_field_names ], mtime => $mtime };
     }
   }
   elsif ($cmd eq 'links') {
     my $which   = shift(@parts);
     my $handler = handler_for('links', $type) || return undef;
-    my %links   = $handler->($content);
+    my @links   = $handler->($content);
+
+    # turn ([ foo => bar ], [ foo => baz ], [ quux => garply ])
+    # into ( foo => bar, foo2 => baz, quux => garply )
+    my %links;
+    for (@links) {
+      my ($name, $link) = @$_;
+      my ($base, $n);
+      for ($base = $name, $n = 2; exists $links{$name}; $name = $base.($n++)) {}
+      $links{$name} = $link;
+    }
+    undef @links;
+
     if (defined $which) {
       my $lto = link_to($links{$which}, $url) || return undef;
       return { link_to => $lto, mtime => $mtime };
     }
     else {
-      return { dir => [ map { encode_name($_) } grep {
-        link_to($links{$_}, $url)
-      } keys %links ], mtime => $mtime };
+      return { 
+        dir   => [ grep { link_to($links{$_}, $url) } keys %links ], 
+        mtime => $mtime 
+      };
     }
   }
   elsif ($cmd eq 'tree') {
@@ -259,12 +284,20 @@ sub encode_name {
 sub fetch_cached {
   my ($url, $force) = @_;
 
-  unless ($force) {
-    my $res = $hcache{$url};
-    return $res if $res;
+  my $res;
+  {
+    lock(%hcache); # TODO finer-grained locking
+    unless ($force) {
+      my $msg = $hcache{$url};
+      $res = HTTP::Response->parse($msg) if $msg;
+    }
+    unless ($res) {
+      print "GET $url\n" unless $opt{d};
+      $res = $ua->get($url);
+      $hcache{$url} = $res->as_string;
+    }
   }
-  print "GET $url\n" unless $opt{d};
-  $hcache{$url} = $ua->get($url);
+  $res;
 }
 
 sub link_to {
@@ -279,6 +312,15 @@ sub file_or_link_to {
   my $lto = link_to($str, $base);
   return { link_to => $lto } if $lto;
   return { file    => "$str\n" };
+}
+
+sub parse_css {
+  my ($css) = @_;
+  ocache($css, sub { 
+    my $obj = new CSS;
+    $obj->read_string($_[0]);
+    $obj;
+  });
 }
 
 sub parse_xml {
@@ -302,13 +344,13 @@ sub handler_for {
   $handlers{$thing}{$key};
 }
 
+## Handler implementations
 sub find_text_links {
   my ($content) = @_;
-  my @urls = sort ($content =~ m{\bhttp://[^\s"'<>]+}g);
-  return map { 'untitled'.($_+1) => $urls[$_] } 0..$#urls;
+  return map { [ URI->new($_)->host => $_ ] }
+    sort ($content =~ m{\bhttp://[^\s"'<>]+}g);
 }
 
-## Handler implementations
 sub find_html_links {
   my ($html) = @_;
 
@@ -322,7 +364,7 @@ sub find_html_links {
       $name =~ s/^\s+|\s+$//g;
       $name = 'untitled' unless length $name;
       [ $name => scalar($_->getAttribute('href')) ];
-    } $obj->findnodes('//a[@href]');
+    } eval { $obj->findnodes('//a[@href]') };
   }
   # failover regexpy version
   else {
@@ -333,20 +375,51 @@ sub find_html_links {
     }
   }
 
-  my %links;
-  for (@links) {
-    my ($name, $href) = @$_;
-    my ($base, $n);
-    for ($base = $name, $n = 2; exists $links{$name}; $name = $base . $n++) {}
-    $links{$name} = $href;
-  }
-
-  return %links;
+  @links;
 }
 
 sub build_html_tree {
   my ($html, $url, @parts) = @_;
   build_xml_tree(html2xml($html), $url, @parts);
+}
+
+sub find_css_links {
+  my ($css) = @_;
+  return () unless $css =~ /url\(/;
+
+  my @links;
+  if ($grok_css) {
+    my $obj = parse_css($css);
+    for my $style (@{$obj->{styles}}) {
+      for my $prop (@{$style->{properties}}) {
+        for my $val (@{$prop->{'values'}}) {
+          $val->{value} =~ /url\((.+)\)/ || next;
+          my $url = $1;
+          for my $sel (map { $_->{name} } @{$style->{selectors}}) {
+            $sel =~ s,/\*.*\*/,,g;
+            $sel =~ s/^\s+|\s+$//g;
+            push(@links, [ $sel => $url ]);
+          }
+        }
+      }
+    }
+  }
+  else {
+    @links = map { [ url => $1 ] } ($css =~ /url\((.+)\)/g);
+  }
+
+  # common cleanup
+  for (@links) {
+    $_->[1] =~ s/^(['"])(.+)\1$/$2/;
+    $_->[1] =~ s/\\\\/\\/g;
+    $_->[1] =~ s/\\([(),\s'"])/$1/g;
+  }
+
+  @links;
+}
+
+sub build_css_tree {
+  my ($css, $url, @parts) = @_;
 }
 
 sub build_json_tree {
@@ -381,7 +454,7 @@ sub build_obj_tree {
     }
   }
   if (ref($obj) eq 'HASH') {
-    return { dir => [ map { encode_name($_) } keys %$obj ] };
+    return { dir => [ keys %$obj ] };
   }
   elsif (ref($obj) eq 'ARRAY') {
     return { dir => [ 0..$#$obj ] };
@@ -418,7 +491,7 @@ sub build_xml_tree {
         $kids{'text()'} = 1;
       }
     }
-    return { dir => [ map { encode_name($_) } 
+    return { dir => [
       keys(%kids),
       map { '@' . $_->getName } $node->getAttributes()
     ]};
