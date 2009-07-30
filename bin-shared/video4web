@@ -138,7 +138,7 @@ sub convert {
 
 sub run {
   my (@cmd) = @_;
-  my $cmd = (@cmd > 1) ? join(' ', map { quotemeta} @cmd) : $cmd[0];
+  my $cmd = (@cmd > 1) ? join(' ', map { quotemeta } @cmd) : $cmd[0];
   if ($opt{v}) {
     print "$cmd\n";
     system(@cmd) unless $opt{n};

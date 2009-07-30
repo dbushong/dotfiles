@@ -8,14 +8,22 @@ use File::Path;
 
 my $prog = basename($0);
 my %opt;
-getopts('hRMU', \%opt);
+getopts('hRMUn:i:', \%opt);
 
 die <<EOF if $opt{h} || !@ARGV;
-usage: $prog [-R] file [file [...]]
+usage: $prog [-R] [-M] [-U] [-n nice-level] file [file [...]]
        -R: don't remove original
        -M: don't remove __MACOSX dir
        -U: don't ignore .url file at the top-level
+       -n: specify nice level (default 20)
+       -i: specify ionice class 2 level (default 7)
 EOF
+$opt{n} = 20 unless ($opt{n} || '') =~ /^[+-]\d+$/;
+$opt{i} = 7  unless ($opt{i} || '') =~ /^\d+$/;
+
+$opt{n} = "+$opt{n}" if $opt{n} && $opt{n} !~ /^[+-]/;
+system('renice', $opt{n}, $$) if $opt{n};
+system('ionice', '-c2', "-n$opt{i}", "-p$$");
 
 for my $pkg (@ARGV) {
   $pkg = "../$pkg" unless $pkg =~ m{^/};

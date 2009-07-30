@@ -17,7 +17,7 @@ getopts('hc:p:Rv', \%opt);
 usage() if $opt{h};
 sub usage {
   die <<EOU;
-usage: $prog [-v] [-c cmd] [-R] [-p profile-name]
+usage: $prog [-v] [-c cmd] [-R] [-p profile-name] [more ff options]
        -c: specify command, e.g. firefox-3.0 or firefox-3.5; default: firefox
        -R: don't remove the profile when done
        -p: specify a name for the profile instead of autogenerating
@@ -39,6 +39,7 @@ print "created profile $prof at $profiles_dir/$path\n" if $opt{v};
 
 # Run Firefox on the new profile
 my $run = "$ff -P $prof";
+$run .= ' ' . join(' ', map { quotemeta } @ARGV) if @ARGV;
 print "running $run\n" if $opt{v};
 exec($run) if $opt{R};
 system($run);
