@@ -111,6 +111,7 @@ Fuse::main(
   mountpoint   => $mount,
   debug        => 0,
   threaded     => 1,
+  mountopts    => 'allow_other',
   'getattr'    => 'main::rfs_getattr',
   'readlink'   => 'main::rfs_readlink',
   'getdir'     => 'main::rfs_getdir',

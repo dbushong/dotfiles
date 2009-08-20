@@ -2,6 +2,8 @@
 
 use warnings;
 use Data::Dumper;
+use Digest::MD5 qw(md5_hex md5_base64);
+use CGI qw(escapeHTML unescapeHTML);
 use open ':locale';
 
 $| = 1;
