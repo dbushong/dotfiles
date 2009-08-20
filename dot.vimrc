@@ -52,6 +52,7 @@ set showmatch
 set exrc
 set tags=tags;/
 set notitle
+set nrformats=alpha,hex,octal
 
 " pesky laptop F1
 map <F1> <Esc>
@@ -62,6 +63,7 @@ nmap Y y$
 nmap <Bslash> :set invpaste<CR>:set paste?<CR>
 nmap <Bslash>{ $? if rWi($C) {kddp>>A;}
 nmap <Bslash>} kddpk<<$xJf(x$F)C;jddk
+nmap +p p$F'byy
 nmap M :w:!make xpi-generated
 nnoremap <C-w>j <C-w>w
 nnoremap <C-w>k <C-w>W
