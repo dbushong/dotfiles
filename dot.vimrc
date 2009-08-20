@@ -59,12 +59,6 @@ map! <F1> <Esc>
 
 " new normal-mode mappings
 nmap Y y$
-nmap S
-\ :if exists("syntax_on") <Bar>
-\   syntax off <Bar>
-\ else <Bar>
-\   syntax enable <Bar>
-\ endif <CR>
 nmap <Bslash> :set invpaste<CR>:set paste?<CR>
 nmap <Bslash>{ $? if rWi($C) {kddp>>A;}
 nmap <Bslash>} kddpk<<$xJf(x$F)C;jddk

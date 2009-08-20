@@ -52,6 +52,15 @@ EOT
 #!/bin/sh
 
 EOT
+  },
+  php => {
+    extension    => 'php',
+    editor_flags => { qr/vi/ => ['+2'] },
+    template     => <<'EOT'
+<?
+
+?>
+EOT
   }
 );
 
