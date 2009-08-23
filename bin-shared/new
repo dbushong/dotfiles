@@ -45,6 +45,11 @@ EOT
 </html>
 EOT
   },
+  'php' => {
+    extension    => 'php',
+    editor_flags => { qr/vi/ => ['+2'] },
+    template     => "<?\n\n?>\n",
+  },
 );
 
 my $prog = basename($0);
