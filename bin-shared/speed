@@ -21,12 +21,16 @@ usage: $prog [-1] [-s secs] [-D] [-R] [-t target-size] [-H] file-or-directory
        -R: don't repaint the line; just reprint every interval
        -H: use bytes and secs for all output values (default: human readable)
        -t: specify a target size in bytes and report estimated completion time;
-           implies -R
+           implies -R; can also specify a file path whose size will be used
 EOU
 }
 
 $opt{s} ||= 2;
 $opt{R} = 1 if $opt{t};
+
+if ($opt{t} && $opt{t} !~ /^\d+$/) {
+  $opt{t} = (-s $opt{t}) || die "$prog: failed to get size for $opt{t}\n";
+}
 
 my @units = qw(bytes KiB MiB GiB TiB);
 splice(@units, 1) if $opt{H};
