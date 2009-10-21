@@ -90,6 +90,11 @@ for my $pkg (@ARGV) {
 
   chdir('..');
 
+  if (!$opt{M} && -d "$dir/__MACOSX") {
+    rmtree("$dir/__MACOSX");
+    @extracted = grep(!/^__MACOSX$/, @extracted);
+  }
+
   if (@extracted == 1) {
     my $ex = $extracted[0];
     if ($ex eq $dir) {
@@ -103,8 +108,6 @@ for my $pkg (@ARGV) {
     }
     $dir = $ex;
   }
-
-  rmtree("$dir/__MACOSX") if !$opt{M} && -d "$dir/__MACOSX";
 
   print "$pkg -> $dir\n";
 }
