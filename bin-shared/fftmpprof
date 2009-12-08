@@ -32,7 +32,7 @@ my $prof = exists($opt{p})
 
 # Create new Profile and capture its path
 my $cp = `$ff -CreateProfile $prof 2>&1`;
-$cp =~ m{^Success: created profile '$prof' at '([^']+)/([^/]+)/prefs.js'$}
+$cp =~ m{^Success: created profile '$prof' at '([^']+)/([^/]+)/prefs.js'$}m
   || die "$prog: bad output from $ff -CreateProfile $prof: $cp\n";
 my ($profiles_dir, $path) = ($1, $2);
 print "created profile $prof at $profiles_dir/$path\n" if $opt{v};

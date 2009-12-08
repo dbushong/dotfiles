@@ -12,7 +12,7 @@ getopts('hRMUn:i:', \%opt);
 
 die <<EOF if $opt{h} || !@ARGV;
 usage: $prog [-R] [-M] [-U] [-n nice-level] file [file [...]]
-       -R: don't remove original
+       -R: don't remove original(s)
        -M: don't remove __MACOSX dir
        -U: don't ignore .url file at the top-level
        -n: specify nice level (default 20)
@@ -26,42 +26,52 @@ system('renice', $opt{n}, $$) if $opt{n};
 system('ionice', '-c2', "-n$opt{i}", "-p$$");
 
 for my $pkg (@ARGV) {
-  $pkg = "../$pkg" unless $pkg =~ m{^/};
-
-  my $base = basename($pkg);
-  my $rm = ($base !~ /\.part$/);
-  my $fail;
-  $base =~ s/\.(zip|xpi|jar|7z|tar(\.(gz|bz2))?|t[bg]z|rar)(\.part)?$//i;
+  my $file = basename($pkg);
+  my $rm   = ($file !~ /\.part$/);
+  my $base = $file;
+  $base =~ s/\.(zip|xpi|jar|7z|tar(\.(gz|bz2))?|t[bg]z|rar|cbr)(\.part)?$//i;
+  if ($file eq $base) { # no extension(s) removed
+    my $infer = `file \Q$pkg\E 2>&1`;
+    # TODO: add more
+    if ($infer =~ /: Zip archive data/) {
+      $file .= '.zip';
+    }
+    else {
+      die "$prog: unknown archive type\n";
+    }
+  }
   my $dir = unique_file($base);
   mkdir($dir);
   chdir($dir);
   my $tmp = "$base-tmp-$$-" . time();
 
-  if ($pkg =~ /\.zip\.part$/i) {
+  my $fail;
+  $pkg = "../$pkg" unless $pkg =~ m{^/};
+  if ($file =~ /\.zip\.part$/i) {
     system('cp', $pkg, $tmp);
     system('zip', '-qF', $tmp);
     system('unzip', $tmp);
     unlink($tmp);
   }
-  elsif ($pkg =~ /\.(zip|xpi|jar)$/i) {
+  elsif ($file =~ /\.(zip|xpi|jar)$/i) {
     $fail = system('unzip', $pkg);
   }
-  elsif ($pkg =~ /\.rar\.part$/i) {
+  elsif ($file =~ /\.(cbr|rar)\.part$/i) {
     $fail = system('unrar', '-kb', 'x', $pkg);
   }
-  elsif ($pkg =~ /\.rar$/i) {
+  elsif ($file =~ /\.(cbr|rar)$/i) {
     $fail = system('unrar', 'x', $pkg);
   }
-  elsif ($pkg =~ /\.7z$/i) {
+  elsif ($file =~ /\.7z$/i) {
     $fail = system('7zr', 'x', $pkg);
   }
-  elsif ($pkg =~ /\.(tgz|tar\.gz)(\.part)?$/i) {
+  elsif ($file =~ /\.(tgz|tar\.gz)(\.part)?$/i) {
     $fail = system('tar', 'zxf', $pkg);
   }
-  elsif ($pkg =~ /\.(tbz|tar\.bz2)(\.part)?$/i) {
+  elsif ($file =~ /\.(tbz|tar\.bz2)(\.part)?$/i) {
     $fail = system('tar', 'jxf', $pkg);
   }
-  elsif ($pkg =~ /\.tar$/i) {
+  elsif ($file =~ /\.tar$/i) {
     $fail = system('tar', 'xf', $pkg);
   }
   else {
@@ -76,7 +86,16 @@ for my $pkg (@ARGV) {
     next;
   }
 
-  unlink($pkg) if $rm && !$opt{R};
+  if ($rm && !$opt{R}) {
+    if ($pkg =~ /\.part1\.(rar|cbr)$/i) {
+      my $glob = quotemeta($pkg);
+      $glob =~ s/\\\.part1\\\.(rar|cbr)$/.*.$1/i;
+      unlink(glob($glob));
+    }
+    else {
+      unlink($pkg);
+    }
+  }
 
   opendir(my $dh, '.');
   my @extracted = grep(!/^\.\.?$/, readdir($dh));
