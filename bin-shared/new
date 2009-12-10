@@ -50,6 +50,39 @@ EOT
     editor_flags => { qr/vi/ => ['+2'] },
     template     => "<?\n\n?>\n",
   },
+  'manifest.json' => {
+    editor_flags => { qr/vi/ => ['+3'] },
+    template     => <<'EOT'
+{
+  // Required
+  "name":    "My Extension",
+  "version": "versionString",
+
+  // Recommended
+  "description": "A plain text description",
+  "icons": { 
+    "16":  "icon16.png",
+    "32":  "icon32.png",
+    "48":  "icon48.png",
+    "128": "icon128.png"
+  },
+
+  // Pick one (or none)
+  "brower_action": {...},
+  "page_action": {...},
+  "theme": {...},
+
+  // Add any of these that you need
+  "background_page": "aFile.html",
+  "chrome_url_overrides": {...},
+  "content_scripts": [...],
+  "options_page": "aFile.html",
+  "permissions": [...],
+  "plugins": [...],
+  "update_url": "http://path/to/updateInfo.xml"
+}
+EOT
+  },
 );
 
 my $prog = basename($0);
@@ -64,13 +97,15 @@ EOU
 
 my ($key, $file);
 if (@ARGV == 1) {
-  $file = $ARGV[0];
-  die "$prog: file must have an extension to autodetect format\n"
-    unless $file =~ /\.([^.]+)$/;
-  my $ext = lc($1);
-  ($key) = grep { lc($format{$_}{extension}) eq $ext } keys %format;
-  die "$prog: no match for format with given extension; specify explicitly\n"
-    unless $key;
+  $key = basename($file = $ARGV[0]);
+  unless ($format{$key}) {
+    die "$prog: file must have an extension to autodetect format\n"
+      unless $file =~ /\.([^.]+)$/;
+    my $ext = lc($1);
+    ($key) = grep { lc($format{$_}{extension} || '') eq $ext } keys %format;
+    die "$prog: no match for format with given extension; specify explicitly\n"
+      unless $key;
+  }
 }
 else {
   ($key, $file) = @ARGV;
