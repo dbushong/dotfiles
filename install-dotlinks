@@ -11,7 +11,7 @@ done
 
 lesskey
 
-for file in cshrc zshrc zshenv; do
+for file in cshrc zshrc zshenv vimrc; do
   if [ ! -f ../.$file ]; then
     echo "Creating skeletal ~/.$file"
     echo "source ~/.$file.base" > ../.$file

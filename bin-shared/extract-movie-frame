@@ -11,7 +11,7 @@ getopts('h', \%opt);
 usage() if $opt{h};
 sub usage {
   die <<EOU if @ARGV != 2;
-usage: $prog in.(avi|dv|mov) out.(png|jpg)
+usage: $prog in.(avi|m4v|dv|mov) out.(png|jpg)
 EOU
 }
 
