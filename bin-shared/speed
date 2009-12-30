@@ -31,7 +31,6 @@ $opt{R} = 1 if $opt{t};
 if ($opt{t} && $opt{t} !~ /^\d+$/) {
   $opt{t} = (-s $opt{t}) || die "$prog: failed to get size for $opt{t}\n";
 }
-
 my @units = qw(bytes KiB MiB GiB TiB);
 splice(@units, 1) if $opt{H};
 
@@ -63,7 +62,7 @@ while (1) {
   my $cur = get_size();
   my $now = time();
 
-  my $bytes = $cur - $first;
+  my $bytes = $cur - $first || next;
   my $elap  = $now - $start;
   my $speed = $bytes / $elap;
 

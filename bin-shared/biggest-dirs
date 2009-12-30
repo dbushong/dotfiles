@@ -1,0 +1,91 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Getopt::Std;
+use File::Basename;
+use File::Find;
+
+my $prog = basename($0);
+my %opt;
+getopts('hn:vk', \%opt);
+usage() if $opt{h};
+sub usage {
+  die <<EOU;
+usage: $prog [-v] [-n top-n] [-k] [dir [...]]
+       -n: show top n largest dirs (default: 10)
+       -v: show all dirs as you go
+       -k: display in KiB; default is human-readable
+EOU
+}
+
+$opt{n} ||= 10;
+
+my (%top, %tmp, $min_bytes, $min_dir);
+find({
+  wanted => sub {
+    my $path    = $File::Find::dir;
+    my $bytes;
+    if (-l) {
+      $bytes = (lstat($_))[7] || return;
+    }
+    else { 
+      my $blks = (stat($_))[12] || return;
+      $bytes = $blks * 512;
+    }
+    $tmp{$path} += $bytes;
+    while ($path ne dirname($path)) {
+      $path = dirname($path);
+      $tmp{$path} += $bytes;
+    }
+  },
+  postprocess => sub {
+    my $path  = $File::Find::dir;
+    my $bytes = $tmp{$path};
+    return unless defined $bytes;
+    print STDERR "$path: $bytes bytes\n" if $opt{v};
+    delete $tmp{$path};
+    my $full = keys(%top) >= $opt{n};
+    if (!$min_bytes || !$full || $bytes > $min_bytes) {
+      delete $top{$min_dir} if defined $min_dir && $full;
+      $min_dir = $path;
+      $top{$path} = $min_bytes = $bytes;
+      while (my ($dir, $b) = each(%top)) {
+        if ($b < $min_bytes) {
+          $min_bytes = $b;
+          $min_dir   = $dir;
+        }
+      }
+    }
+  }
+}, @ARGV ? @ARGV : ('.'));
+
+my $len;
+my $log10 = log(10);
+for my $dir (sort { $top{$b} <=> $top{$a} } keys %top) {
+  my $num = $top{$dir};
+  if ($opt{k}) {
+    $num = int($num / 1024 + 0.5);
+  }
+  else {
+    $num = size_units($num, '%d %s');
+  }
+  $len ||= length($num);
+  printf("%${len}s %s\n", $num, $dir);
+}
+
+
+sub size_units {
+  my ($num, $fmt) = @_;
+
+  my @units = qw(bytes KiB MiB GiB TiB);
+
+  $fmt ||= '%.1f%s';
+  for (my $i = $#units; $i >= 0; $i--) {
+    my $n = 1024 ** $i;
+    return sprintf($fmt, $num / $n, $units[$i]) if $num >= $n;
+  }
+  sprintf($fmt, 0, $units[0]);
+}
+
+

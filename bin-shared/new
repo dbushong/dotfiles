@@ -54,11 +54,12 @@ EOT
 
 my $prog = basename($0);
 my %opt;
-getopts('h', \%opt);
+getopts('hf', \%opt);
 usage() if $opt{h} || @ARGV < 1 || @ARGV > 2;
 sub usage {
   die <<EOU;
-usage: $prog [@{[ join(' | ', sort keys %format) ]}] filename
+usage: $prog [-f] [@{[ join(' | ', sort keys %format) ]}] filename
+       -f: force (if file already exists)
 EOU
 }
 
@@ -84,6 +85,8 @@ unless ($format{$key}) {
 }
 
 my $fmt = $format{$key};
+
+die "$prog: $file already exists; -f to force\n" if !$opt{f} && -f $file;
 
 open(my $fh, '>', $file) || die "$prog: couldn't open $file: $!\n";
 print $fh $fmt->{template};
