@@ -16,6 +16,7 @@ use strict;
 use warnings;
 use Getopt::Std;
 use File::Basename;
+use utf8;
 
 my $prog = basename($0);
 my %opt;
