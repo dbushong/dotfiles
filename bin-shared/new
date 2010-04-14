@@ -5,6 +5,8 @@ use warnings;
 use Getopt::Std;
 use File::Basename;
 
+my ($key, $file);
+
 my %format = (
   'perl-script' => {
     extension  => 'pl',
@@ -45,6 +47,22 @@ EOT
 </html>
 EOT
   },
+  recipe => {
+    template => sub {
+      my $name = $file;
+      $name =~ s/\.txt$//;
+      $name =~ s/-(.)/ \u$1/g;
+      $name = ucfirst($name);
+      my $line = $name;
+      $line =~ s/./~/g;
+      return <<EOT;
+$name
+$line
+
+
+EOT
+    }
+  }
 );
 
 my $prog = basename($0);
@@ -57,7 +75,6 @@ usage: $prog [@{[ join(' | ', sort keys %format) ]}] filename
 EOU
 }
 
-my ($key, $file);
 if (@ARGV == 1) {
   $file = $ARGV[0];
   die "$prog: file must have an extension to autodetect format\n"
@@ -81,7 +98,9 @@ unless ($format{$key}) {
 my $fmt = $format{$key};
 
 open(my $fh, '>', $file) || die "$prog: couldn't open $file: $!\n";
-print $fh $fmt->{template};
+my $tmpl = $fmt->{template};
+$tmpl = $tmpl->() if ref $tmpl;
+print $fh $tmpl;
 close($fh);
 
 chmod(0775, $file) if $fmt->{executable};
