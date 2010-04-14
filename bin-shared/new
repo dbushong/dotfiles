@@ -51,6 +51,22 @@ EOT
     editor_flags => { qr/vi/ => ['+2'] },
     template     => "<?\n\n?>\n",
   },
+  recipe => {
+    template => sub {
+      my $name = $file;
+      $name =~ s/\.txt$//;
+      $name =~ s/-(.)/ \u$1/g;
+      $name = ucfirst($name);
+      my $line = $name;
+      $line =~ s/./~/g;
+      return <<EOT;
+$name
+$line
+
+
+EOT
+    }
+  }
 );
 
 my $prog = basename($0);
