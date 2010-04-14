@@ -39,7 +39,7 @@ while (<>) {
   my $line = $_;
 
   # Bots
-  if ($line =~ /(feedfetcher|spider|bots?|pubsub|bloglines|crawl(er)?|test|teoma|charlotte|java|lwp::simple|google desktop|agent|scoutjet|slurp|python-urllib|scooter|rambler|validator|winhttp|sleuth|seeker|nutch|nagios|libwww-perl|webcollage|screensaver|curl|wget)\b/i || $line =~ m{^Mozilla/5\.0 \([^)]+\)$}) {
+  if ($line =~ /(feedfetcher|spider|bots?|pubsub|bloglines|crawl(er)?|test|teoma|charlotte|java|lwp::simple|google desktop|agent|scoutjet|slurp|python-urllib|scooter|rambler|validator|winhttp|sleuth|seeker|nutch|nagios|libwww-perl|webcollage|screensaver|curl|wget|yandex)\b/i || $line =~ m{^Mozilla/5\.0 \([^)]+\)$}) {
     output('BOT') unless $opt{B};
     next;
   }
@@ -64,7 +64,7 @@ while (<>) {
   }
   else {
     # Blah 1.2.3 or Blah/1.2.3
-    if ($line =~ m{\b(MSIE|Danger hiptop|Android|PLAYSTATION) ([\d.rcbape]+)} || $line =~ m{\b(Chrome|Firefox|Flock|Opera|BlackBerry\d+|Camino|Netscape\d*|Pandora|Shiretoko|Iceweasel|Minefield|Konqueror|Nokia[^/]*|Trident)/([\d.rcbape]+)}) {
+    if ($line =~ m{\b(MSIE|Danger hiptop|Android|PLAYSTATION) ([\d.rcbape]+)} || $line =~ m{\b(Chrome|Firefox|Flock|Opera|BlackBerry\d+|Camino|Netscape\d*|Pandora|Shiretoko|Iceweasel|Minefield|Palemoon|Epiphany|Konqueror|Nokia[^/]*|Trident)/([\d.rcbape]+)}) {
       output($1, $2);
     }
     # Version/1.2.3 Blah/348

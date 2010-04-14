@@ -1,0 +1,20 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Getopt::Std;
+use File::Basename;
+
+my $prog = basename($0);
+my %opt;
+getopts('hf:o:', \%opt);
+usage() if $opt{h} || !$opt{o};
+sub usage {
+  die <<EOU;
+usage: $prog [-f output-fmt] -o output-file input1 input2 [...]
+EOU
+}
+
+$opt{o} = "$opt{f}:$opt{o}" if $opt{f};
+exec('montage', '-background', 'none', '-geometry', '+0+0', '-tile', '1x', 
+  @ARGV, $opt{o});

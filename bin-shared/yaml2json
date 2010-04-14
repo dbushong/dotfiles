@@ -1,0 +1,11 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use JSON;
+use YAML;
+
+my $yaml = do { local $/; <> };
+my @docs = Load($yaml);
+my $obj  = (@docs > 1) ? \@docs : $docs[0];
+print to_json($obj);

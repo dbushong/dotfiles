@@ -1,0 +1,22 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Getopt::Std;
+use File::Basename;
+use JSON;
+use utf8;
+use open ':locale';
+
+my $prog = basename($0);
+my %opt;
+getopts('h', \%opt);
+usage() if $opt{h};
+sub usage {
+  die <<EOU;
+usage: $prog [file [...]]
+EOU
+}
+
+my $json = do { local $/; <> };
+print JSON->new->pretty(1)->encode(from_json($json));

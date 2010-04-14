@@ -1,0 +1,22 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Getopt::Std;
+use File::Basename;
+use MIME::Base64;
+use utf8;
+
+my $prog = basename($0);
+my %opt;
+getopts('h', \%opt);
+usage() if $opt{h};
+sub usage {
+  die <<EOU;
+usage: $prog [file [...]]
+EOU
+}
+
+my $b64 = do { local $/; <> };
+$b64 =~ s#[^0-9A-Za-z+/=]##g;
+print decode_base64($b64);

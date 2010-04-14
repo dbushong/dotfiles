@@ -1,0 +1,424 @@
+#!/usr/bin/perl
+#
+# mount.firefox: mounts a MozRepl-enabled Firefox 3.5+ as a FUSE filesystem
+#
+# REQUIRED non-standard modules: Fuse, Net::Telnet
+# OPTIONAL modules: none
+#
+
+# TODO: cleanup error codes
+
+## Standard Modules
+use strict;
+use warnings;
+use Getopt::Std;
+use File::Basename;
+use POSIX qw(:errno_h :fcntl_h ceil);
+use Encode;
+use Net::Telnet;
+use JSON;
+
+## Required Modules
+use Fuse;
+
+## Setup and Options
+my $prog = basename($0);
+my %opt;
+getopts('hs:p:d', \%opt);
+usage() if $opt{h} || @ARGV != 1;
+sub usage {
+  die <<EOU;
+usage: $prog [-d] [-s server] [-p port] mount-point
+       -s: MozRepl server hostname to connect to; default: localhost
+       -p: MozRepl port to connect to; default: 4242
+       -d: daemonize; default is to run in foreground with debugging
+EOU
+}
+$opt{s} ||= 'localhost';
+$opt{p} ||= 4242;
+my $mount = $ARGV[0];
+
+my $JSON = JSON->new->allow_nonref;
+
+## Daemonizing
+if ($opt{d}) {
+  close(STDOUT);
+  close(STDIN);
+  close(STDERR);
+  fork and exit;
+}
+
+## Connect to browser and initialize
+my $repl = Net::Telnet->new(
+  Timeout  => 10,
+  Prompt   => '/repl> $/',
+  Host     => $opt{s},
+  Port     => $opt{p}
+) || die "$prog: failed to connect to $opt{s}:$opt{p}\n";
+$repl->waitfor('/\nrepl> /');
+$repl->cmd('repl.home();');
+my (%cache, %trunc_before_write);
+
+## Set up utility func(s)
+repl(<<'EOJS');
+var mountff = (function () { 
+  function getPath(parts, obj) {
+    try {
+    for (var i = 0; i < parts.length; i++) {
+      var part = parts[i];
+      if (obj && obj[part] !== undefined) obj = obj[part];
+      else return undefined;
+    }
+    return obj;
+    }
+    catch (err) { return undefined; }
+  }
+
+  function enc(obj) {
+    var type = typeof obj;
+    if (type == 'function')  return 'FUNC:' + obj.toSource();
+    if (type == 'undefined') return 'undefined';
+    return JSON.stringify(obj);
+  }
+
+  function utf8Encode(str) {
+    var ustr = '';
+    for (var i = 0; i < str.length; i++) {
+      var c = str.charCodeAt(i);
+      if (c < 128) 
+        ustr += str[i];
+      else if (c > 127 && c < 2048)
+        ustr += String.fromCharCode((c >> 6) | 192)
+             +  String.fromCharCode((c & 63) | 128);
+      else
+          ustr += String.fromCharCode((c >> 12)       | 224)
+          ustr +  String.fromCharCode(((c >> 6) & 63) | 128)
+          ustr +  String.fromCharCode((c & 63)        | 128);
+    }
+    return ustr;
+  }
+
+  function deleteProp(parts, obj) {
+    return createObj(parts, obj, true);
+  }
+
+  function createObj(parts, obj, del) {
+    if (parts.length == 0) return enc(false);
+    var prop = parts.pop();
+    obj = getPath(parts, obj);
+    if (obj === null || 'object' != typeof obj) return enc(false);
+    if (del) delete obj[prop];
+    else obj[prop] = {};
+    return enc(true);
+  }
+
+  function move(from_parts, obj, to_parts) {
+    var from_obj = getPath(from_parts, obj);
+    if (from_obj === undefined) return enc(false);
+    var to_obj = getPath(to_parts, obj);
+    var from_prop = from_parts.pop();
+    var to_prop;
+    // moving into a "directory"
+    if ('object' == typeof to_obj && to_obj !== null) {
+      to_prop = from_prop;
+    }
+    // overwriting or creating a new thing
+    else {
+      to_prop = to_parts.pop();
+      to_obj  = getPath(to_parts, obj);
+      if (to_obj === undefined) return enc(false);
+    }
+    to_obj[to_prop] = from_obj;
+    from_obj = getPath(from_parts, obj);
+    delete from_obj[from_prop];
+    return enc(true);
+  }
+
+  // -1: directory
+  // >= 0: file length
+  // !int: function (read-only)
+  function attrFor(thing) {
+    var type = typeof thing;
+    if (type === undefined
+    ||  type == 'undefined') return enc(undefined);
+    if (thing === null)      return 0;
+    if (type == 'object')    return -1;
+    if (type == 'function')  return thing.toSource().length + 0.1;
+    return utf8Encode(thing.toString()).length;
+  }
+
+  function getAttr(parts, obj) {
+    try {
+      return attrFor(getPath(parts, obj));
+    } catch (err) { 
+      return enc(undefined); 
+    }
+  }
+
+  // returns undefined for DNE, {prop: attr, ... } for object
+  function getDir(parts, obj) {
+    obj = getPath(parts, obj);
+    if ('object' != typeof obj || obj === null) return enc(undefined);
+    var prop, dir = {};
+    for (prop in obj) try { dir[prop] = attrFor(obj[prop]); } catch (e) { }
+    return enc(dir);
+  }
+
+  // returns property contents, but not for objects (they're "not files")
+  function getFile(parts, obj) {
+    obj = getPath(parts, obj);
+    if (obj !== null && 'object' == typeof obj) obj = undefined;
+    return enc(obj);
+  }
+
+  function set(parts, obj, val) {
+    if (parts.length == 0) return enc(false);
+    var prop = parts.pop();
+    obj = getPath(parts, obj); 
+    if (obj === undefined) return enc(false);
+    obj[prop] = val;
+    return enc(true);
+  }
+
+  return { getAttr: getAttr, deleteProp: deleteProp, createObj: createObj,
+           getDir: getDir, getFile: getFile, move: move, set: set };
+})();
+EOJS
+
+## Run filesystem
+Fuse::main(
+  # options
+  mountpoint => $mount,
+  debug      => 1,
+  threaded   => 0,
+  # fs methods
+  'getattr'  => 'main::ff_getattr',
+  'getdir'   => 'main::ff_getdir',
+  'open'     => 'main::ff_open',
+  'read'     => 'main::ff_read',
+  'mkdir'    => 'main::ff_mkdir',
+  'unlink'   => 'main::ff_unlink',
+  'rmdir'    => 'main::ff_unlink',
+  'rename'   => 'main::ff_rename',
+  'truncate' => 'main::ff_truncate',
+  'write'    => 'main::ff_write',
+  'mknod'    => 'main::ff_mknod',
+  'utime'    => 'main::ff_utime'
+);
+
+exit; # never reached?
+
+## Filesystem calbacks
+sub ff_getattr {
+  my ($path) = @_;
+  my $att;
+  my $now = time();
+  my $ts  = $now;
+  if ($path =~ m{/mff_clear_cache$}) {
+    $att = 14.1;
+  }
+  else {
+    my $ent = $cache{$path}{getAttr};
+    $ent = $cache{$path}{getAttr} = 
+      { att => mff_call('getAttr', $path), created => $ts }
+        unless defined $ent;
+    $ts  = $ent->{created};
+    $att = $ent->{att};
+  }
+  return -ENOENT() unless defined $att;
+  my ($mode, $size);
+  if ($att < 0) {
+    $mode = 040755;
+    $size = 0;
+  }
+  else {
+    $size = int($att);
+    $mode = ($size == $att) ? 0100644 : 0100444;
+  }
+  my $blksize  = 1024 * 1024;
+  my $blocks   = ceil($size / $blksize);
+  #dev ino mode  nlink uid gid rdev size   atime mtime ctime blksize   blocks
+  (0,  0,  $mode,1,    $<, $(, 0,   $size, $now, $ts,  $ts,  $blksize, $blocks);
+}
+
+sub ff_getdir {
+  my ($path) = @_;
+  my $dir = ($cache{$path}{getDir} ||= mff_call('getDir', $path))
+    || return -ENOTDIR();
+  while (my ($prop, $att) = each(%$dir)) {
+    $path .= '/' unless $path =~ m{/$};
+    $cache{$path.encode_name($prop)}{getAttr} = 
+      { created => time(), att => $att };
+  }
+  ('.', '..', (map { encode_name($_) } keys(%$dir)), 0);
+}
+
+sub ff_open {
+  my ($path, $flags) = @_;
+  return 0 if $path =~ m{/mff_clear_cache$};
+  my $att = mff_call('getAttr', $path);
+  return -ENOENT() unless defined $att;
+  return -EISDIR() if $att < 0;
+  # opened in write-only mode; need to truncate
+  $trunc_before_write{$path} = $flags & O_WRONLY();
+  return 0;
+}
+
+sub ff_read {
+  my ($path, $bytes, $off) = @_;
+  if ($path =~ m{/mff_clear_cache$}) {
+    %cache = ();
+    return substr("cache cleared\n", $off, $bytes);
+  }
+  my $str = mff_call('getFile', $path);
+  return -EACCES() unless defined $str;
+  substr(encode('utf-8', $str), $off, $bytes);
+}
+
+sub ff_mkdir {
+  my ($path) = @_;
+  if (mff_call('createObj', $path)) {
+    delete $cache{dirname($path)};
+    return 0;
+  }
+  else {
+    return -ENOENT();
+  }
+}
+
+sub ff_unlink {
+  my ($path) = @_;
+  if (mff_call('deleteProp', $path)) {
+    delete $cache{$path};
+    delete $cache{dirname($path)};
+    return 0;
+  }
+  else {
+    return -ENOENT();
+  }
+}
+
+sub ff_rename {
+  my ($from, $to) = @_;
+  if (mff_call('move', $from, [path_parts($to)])) {
+    delete $cache{$from};
+    delete $cache{$to};
+    delete $cache{dirname($from)};
+    delete $cache{dirname($to)};
+    return 0;
+  }
+  else {
+    return -ENOENT();
+  }
+}
+
+sub ff_truncate {
+  my ($path, $len) = @_;
+  my $str = '';
+  if ($len > 0) {
+    $str = mff_call('getFile', $path);
+    $str = '' unless defined $str;
+    $str = substr(encode('utf-8', $str), 0, $len);
+  }
+
+  # type detection heuristic -- use extended attributes?
+  if ($str =~ /^\s*true\s*$/) {
+    $str = JSON::true;
+  }
+  elsif ($str =~ /^\s*false\s*$/) {
+    $str = JSON::false;
+  }
+  elsif ($str =~ /^\s*(null)?\s*$/) {
+    $str = undef;
+  }
+  elsif ($str =~ /^\s*-?(0|[1-9]\d*)(\.\d+)?([eE][+-]?\d+)?\s*$/) {
+    $str = 0 + $str;
+  }
+
+  delete $cache{$path};
+
+  mff_call('set', $path, $str) ? 0 : -ENOENT();
+}
+
+sub ff_write {
+  my ($path, $buf, $off) = @_;
+  my $len = length($buf);
+  return 0 if $len == 0;
+
+  my $str;
+  if (!$off && $trunc_before_write{$path}) {
+    $str = encode('utf-8', $buf);
+  }
+  else {
+    $str = mff_call('getFile', $path);
+    $str = '' unless defined $str;
+    $str = encode('utf-8', $str);
+    substr($str, $off, $len, $buf);
+  }
+
+  delete $cache{$path};
+
+  mff_call('set', $path, $str) ? $len : -ENOENT();
+}
+
+sub ff_mknod {
+  my ($path, $modes, $dev) = @_;
+  return -EACCES() if $path =~ m{/\.[^/]+\.swp$};
+  if (mff_call('set', $path, '')) {
+    $cache{$path}{getAttr} = { created => time(), att => 0 };
+    delete $cache{dirname($path)};
+    return 0;
+  }
+  else {
+    return -ENOENT();
+  }
+}
+
+sub ff_utime { 0; }
+
+## Utility functions
+sub repl {
+  my ($js) = @_;
+  $js =~ s/\s*$//s;
+  $js .= ';' unless $js =~ /;$/s;
+  print STDERR ">>> SENDING: $js\n";
+  my @lines = $repl->cmd($js);
+  chomp for @lines;
+  my $res = join("\n", @lines);
+  print STDERR "<<< GOT: $res\n";
+  $res;
+}
+
+sub path_parts {
+  my ($path) = @_;
+  $path =~ s{^/+|/+$}{}g;
+  my @parts;
+  @parts = map { decode_name($_) } split(/\/+/, $path) if length($path);
+  @parts;
+}
+
+sub mff_call {
+  my ($method, $path, @args) = @_;
+  my $js = "mountff.$method(" . $JSON->encode([ path_parts($path) ]) . ', this';
+  $js .= join(', ', '', map { $JSON->encode($_) } @args) if @args;
+  $js .= ')';
+  my $res = repl($js);
+  return undef if $res =~ /^!!!|^"undefined"$|^\s*$/;
+  $res =~ s/^"|"$//g;
+  return '' if $res eq 'null';
+  ($res =~ /^FUNC:/) ? $' : $JSON->decode($res);
+}
+
+sub decode_name {
+  my ($str) = @_;
+  $str =~ s/\%2F/\//g;
+  $str =~ s/\%25/\%/g;
+  $str;
+}
+
+sub encode_name {
+  my ($url) = @_;
+  $url =~ s/\%/\%25/g;
+  $url =~ s/\//\%2F/g;
+  $url;
+}
