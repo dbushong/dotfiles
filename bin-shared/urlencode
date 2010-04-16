@@ -1,0 +1,13 @@
+#!/usr/bin/perl
+
+use CGI 'escape';
+
+if (@ARGV) {
+  print(escape($_), "\n") for @ARGV;
+}
+else {
+  while (<STDIN>) {
+    chomp;
+    print(escape($_), "\n");
+  }
+}

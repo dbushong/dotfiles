@@ -1,0 +1,13 @@
+#!/usr/bin/perl
+
+use CGI 'unescape';
+
+if (@ARGV) {
+  print(unescape($_), "\n") for @ARGV;
+}
+else {
+  while (<STDIN>) {
+    chomp;
+    print(unescape($_), "\n");
+  }
+}
