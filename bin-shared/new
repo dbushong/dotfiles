@@ -16,6 +16,7 @@ use strict;
 use warnings;
 use Getopt::Std;
 use File::Basename;
+use utf8;
 
 my $prog = basename($0);
 my %opt;
@@ -83,15 +84,32 @@ EOT
 }
 EOT
   },
+  recipe => {
+    template => sub {
+      my $name = $file;
+      $name =~ s/\.txt$//;
+      $name =~ s/-(.)/ \u$1/g;
+      $name = ucfirst($name);
+      my $line = $name;
+      $line =~ s/./~/g;
+      return <<EOT;
+$name
+$line
+
+
+EOT
+    }
+  }
 );
 
 my $prog = basename($0);
 my %opt;
-getopts('h', \%opt);
+getopts('hf', \%opt);
 usage() if $opt{h} || @ARGV < 1 || @ARGV > 2;
 sub usage {
   die <<EOU;
-usage: $prog [@{[ join(' | ', sort keys %format) ]}] filename
+usage: $prog [-f] [@{[ join(' | ', sort keys %format) ]}] filename
+       -f: force (file file already exists)
 EOU
 }
 
@@ -119,6 +137,8 @@ unless ($format{$key}) {
 }
 
 my $fmt = $format{$key};
+
+die "$prog: $file already exists; -f to force\n";
 
 open(my $fh, '>', $file) || die "$prog: couldn't open $file: $!\n";
 print $fh $fmt->{template};
