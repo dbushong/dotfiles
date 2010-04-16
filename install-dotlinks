@@ -18,10 +18,5 @@ for file in cshrc zshrc zshenv vimrc; do
   fi
 done
 
-if [ ! -f ../.hgrc ]; then
-  echo "Creating skeletal ~/.hgrc"
-  echo "%include .hgrc.base" > ../.hgrc
-fi
-
 [ -d ../bin        ] || mkdir ../bin
 [ -d ../bin/shared ] || ln -s ../.dotfiles/bin-shared ../bin/shared
