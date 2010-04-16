@@ -5,6 +5,7 @@ use warnings;
 use Getopt::Std;
 use File::Basename;
 
+my ($key, $file);
 my %format = (
   'perl-script' => {
     extension  => 'pl',
@@ -113,7 +114,6 @@ usage: $prog [-f] [@{[ join(' | ', sort keys %format) ]}] filename
 EOU
 }
 
-my ($key, $file);
 if (@ARGV == 1) {
   $key = basename($file = $ARGV[0]);
   unless ($format{$key}) {
@@ -138,7 +138,7 @@ unless ($format{$key}) {
 
 my $fmt = $format{$key};
 
-die "$prog: $file already exists; -f to force\n";
+die "$prog: $file already exists; -f to force\n" if -f $file && !$opt{f};
 
 open(my $fh, '>', $file) || die "$prog: couldn't open $file: $!\n";
 print $fh $fmt->{template};
