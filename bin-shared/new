@@ -100,7 +100,28 @@ $line
 
 EOT
     }
-  }
+  },
+  ruby => {
+    extension  => 'rb',
+    executable => 1,
+    template   => <<'EOT'
+#!/usr/bin/ruby
+
+require 'optparse'
+
+prog = File.basename($0)
+opts = OptionParser.new
+opts.banner = "usage: #{prog} [options]"
+opts.on_tail('-h', 'Show this message') { puts opts ; exit 1 }
+begin
+  opts.parse!(ARGV)
+rescue OptionParser::ParseError => e
+  $stderr.puts "#{prog}: #{e}\n#{opts}"
+  exit 1
+end
+
+EOT
+  },
 );
 
 my $prog = basename($0);
