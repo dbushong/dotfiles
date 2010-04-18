@@ -112,7 +112,7 @@ require 'optparse'
 prog = File.basename($0)
 opts = OptionParser.new
 opts.banner = "usage: #{prog} [options]"
-opts.on_tail('-h', 'Show this message') { puts opts ; exit 1 }
+opts.on_tail('-h', '--help', 'Show this message') { puts opts ; exit 1 }
 begin
   opts.parse!(ARGV)
 rescue OptionParser::ParseError => e
