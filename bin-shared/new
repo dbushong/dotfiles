@@ -122,6 +122,14 @@ end
 
 EOT
   },
+  sh => {
+    extension  => 'sh',
+    executable => 1,
+    template   => <<'EOT'
+#!/bin/sh
+
+EOT
+  },
 );
 
 my $prog = basename($0);
