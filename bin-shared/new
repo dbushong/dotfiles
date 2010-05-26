@@ -31,8 +31,23 @@ EOU
 
 EOT
   },
-  'xhtml' => {
+  html => {
     extension    => 'html',
+    editor_flags => { qr/vi/ => ['+7'] },
+    template     => <<'EOT'
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Title of Page</title>
+  </head>
+  <body>
+    
+  </body>
+</html>
+EOT
+  },
+  'xhtml' => {
+    extension    => 'xhtml',
     editor_flags => { qr/vi/ => ['+8'] },
     template => <<'EOT'
 <?xml version="1.0" encoding="UTF-8"?>

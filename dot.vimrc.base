@@ -29,6 +29,7 @@ autocmd BufNewFile,BufRead * if &ft == 'php'   | compiler php   | endif
 autocmd BufNewFile,BufRead * if &ft == 'javascript' | compiler javascript | endif
 
 " general settings
+set modeline
 set noshowmode
 set noruler
 set nohlsearch
