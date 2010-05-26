@@ -104,7 +104,7 @@ sub convert {
     $ext        = '';
   }
   else {
-    $shared_opts .= q{-oac faac -faacopts mpeg=4:br=128:object=2 -ovc x264 -x264encopts bitrate=1000:me=umh:me_range=24:nodct_decimate:nointerlaced:8x8dct:nofast_pskip:trellis=1:partitions=p8x8,b8x8,i8x8,i4x4:mixed_refs:keyint=300:keyint_min=30:frameref=3:bframes=6:b_adapt:b_pyramid:weight_b:direct_pred=auto:subq=7:chroma_me:cabac:deblock:nossim:nopsnr:level_idc=41:threads=auto};
+    $shared_opts .= q{-oac faac -faacopts mpeg=4:br=128:object=2 -ovc x264 -x264encopts bitrate=1000:me=umh:me_range=24:nodct_decimate:nointerlaced:8x8dct:nofast_pskip:trellis=1:partitions=p8x8,b8x8,i8x8,i4x4:mixed_refs:keyint=300:keyint_min=30:frameref=3:bframes=6:b_adapt:b_pyramid=normal:weight_b:direct_pred=auto:subq=7:chroma_me:cabac:deblock:nossim:nopsnr:level_idc=41:threads=auto};
     $pass1_opts = 'pass=1:turbo=2';
     $pass2_opts = 'pass=2';
     $ext        = '.avi';
