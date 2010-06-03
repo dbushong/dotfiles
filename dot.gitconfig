@@ -1,0 +1,7 @@
+[user]
+	name = David Bushong
+	email = david@bushong.net
+[alias]
+	ci = commit
+	co = checkout
+	st = status
