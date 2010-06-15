@@ -13,12 +13,14 @@ use POSIX 'strftime';
 
 my $prog = basename($0);
 my %opt;
-getopts('hc:p:Rv', \%opt);
+getopts('hc:d:p:Rv', \%opt);
 usage() if $opt{h};
 sub usage {
   die <<EOU;
-usage: $prog [-v] [-c cmd] [-R] [-p profile-name] [more ff options]
+usage: $prog [-v] [-c cmd] [-R] [-d dup-profile] [-p profile-name] \\
+             [more ff options]
        -c: specify command, e.g. firefox-3.0 or firefox-3.5; default: firefox
+       -d: duplicate a given existing profile
        -R: don't remove the profile when done
        -p: specify a name for the profile instead of autogenerating
        -v: verbose
@@ -37,6 +39,14 @@ $cp =~ m{^Success: created profile '$prof' at '([^']+)/([^/]+)/prefs.js'$}m
 my ($profiles_dir, $path) = ($1, $2);
 print "created profile $prof at $profiles_dir/$path\n" if $opt{v};
 
+# Clone existing over top, if requested
+my $ini = "$profiles_dir/profiles.ini";
+my $cfg = Config::IniFiles->new(-file => $ini);
+if ($opt{d}) {
+  my $cpath = $cfg->val(find_profile_section(Name => $opt{d}), 'Path');
+  die "DOESN'T WORK";
+}
+
 # Run Firefox on the new profile
 my $run = "$ff -P $prof";
 $run .= ' ' . join(' ', map { quotemeta } @ARGV) if @ARGV;
@@ -45,16 +55,16 @@ exec($run) if $opt{R};
 system($run);
 
 # Clear out the tmp profile
-my $ini    = "$profiles_dir/profiles.ini";
 print "clearing profile with Path=$path from $ini\n" if $opt{v};
-my $cfg    = Config::IniFiles->new(-file => $ini);
-my ($psec) = grep {
-  /^Profile\d+$/ && $cfg->val($_, 'Path') eq $path
-} $cfg->Sections;
-die "$prog: couldn't find Path=$path in $ini\n" unless $psec;
-$cfg->DeleteSection($psec);
+$cfg->DeleteSection(find_profile_section(Path => $path));
 $cfg->WriteConfig($ini);
 
 # Delete the profile dir
 print "removing $profiles_dir/$path\n" if $opt{v};
 rmtree("$profiles_dir/$path");
+
+sub find_profile_section {
+  my ($key, $val) = @_;
+  (grep { /^Profile\d+$/ && $cfg->val($_, $key) eq $val } $cfg->Sections)[0]
+    || die "$prog: couldn't find $key=$val in $ini\n";
+}
