@@ -2,7 +2,7 @@
 
 require 'rubygems'
 require 'getoptlong'
-require 'activeresource'
+require 'active_resource'
 require 'tempfile'
 
 KeyFile = "#{ENV['HOME']}/.shdns.key"
