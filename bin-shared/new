@@ -150,10 +150,10 @@ EOT
 my $prog = basename($0);
 my %opt;
 getopts('hf', \%opt);
-usage() if $opt{h} || @ARGV < 1 || @ARGV > 2;
+usage() if $opt{h} || @ARGV > 2;
 sub usage {
   die <<EOU;
-usage: $prog [-f] [@{[ join(' | ', sort keys %format) ]}] filename
+usage: $prog [-f] [@{[ join(' | ', sort keys %format) ]}] filename|-
        -f: force (file file already exists)
 EOU
 }
@@ -181,6 +181,11 @@ unless ($format{$key}) {
 }
 
 my $fmt = $format{$key};
+
+if ($file eq '-') {
+  print $fmt->{template};
+  exit;
+}
 
 die "$prog: $file already exists; -f to force\n" if -f $file && !$opt{f};
 
