@@ -186,6 +186,7 @@ syn match cssBraceError "}"
 syn match cssPseudoClass ":\S*" contains=cssPseudoClassId,cssUnicodeEscape
 syn keyword cssPseudoClassId contained link visited active hover focus before after left right
 syn match cssPseudoClassId contained "\<first\(-\(line\|letter\|child\)\)\=\>"
+syn match cssPseudoClassId contained "\<last-child\=\>"
 syn region cssPseudoClassLang matchgroup=cssPseudoClassId start=":lang(" end=")" oneline
 
 syn region cssComment start="/\*" end="\*/" contains=@Spell
