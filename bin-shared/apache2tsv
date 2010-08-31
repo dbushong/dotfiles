@@ -1,0 +1,75 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Getopt::Std;
+use File::Basename;
+use utf8;
+
+my $def_fields = 'ip,ident,user,year,mon,day,hour,min,sec,method,path,query,'
+               . 'http,code,bytes,referrer,ua';
+
+my $prog = basename($0);
+my %opt;
+getopts('hf:q', \%opt);
+usage() if $opt{h};
+sub usage {
+  die <<EOU;
+usage: $prog [-q] [-f field[,field[,...]]] [file [...]]
+       -q: quiet: no warnings about unparseable lines
+       -f: specify fields (and order) to emit; default is all fields, or:
+           $def_fields
+EOU
+}
+
+my @fields = split(/,/, $opt{f} || $def_fields);
+
+my $apache_re = qr{^
+  (\d+\.\d+\.\d+\.\d+) [ ]  # ip
+  (\S+)                [ ]  # ident
+  (\S+)                [ ]  # user
+  \[
+    (\d\d) / ([JFMASOND][aepuco][nbrylgptvc]) / (\d{4}) # day mon year
+    : (\d\d) : (\d\d) : (\d\d)                          # hour min sec
+    [ ] [+-] \d{4}
+  \] [ ]
+  "
+    ([A-Z]+)                    [ ]  # method
+    (/[^? ]*) (?: \? ([^ ]*) )? [ ]  # path query
+    HTTP/([\d.]+)                    # http
+  " [ ]
+  (\d+)       [ ] # code
+  (\d+)       [ ] # bytes
+  " ([^"]*) " [ ] # referrer
+  " ([^"]*) "     # ua
+  \n
+$}x;
+
+# build Mon -> num mapping
+my @mons = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
+my %mon; $mon{$mons[$_]} = $_+1 for 0..11;
+
+while (<>) {
+  my %line;
+  @line{qw(ip ident user day mon year hour min sec method
+           path query http code bytes referrer ua)} = /$apache_re/o;
+
+  unless ($line{ip}) {
+    warn "bad line: $_" unless $opt{q};
+    next;
+  }
+  
+  for (qw(ident user referrer ua)) {
+    $line{$_} = '' if $line{$_} eq '-';
+  }
+  $line{$_}  = $line{$_}+0 for qw(day hour min sec);
+  $line{mon} = $mon{$line{mon}};
+
+  print(join("\t", map { defined() ? $_ : '' } @line{@fields}), "\n");
+}
+
+__END__
+
+1.2.3.4 logname user [30/Aug/2010:00:00:38 -0700] "GET /blah?foo=bar HTTP/1.1" 200 196 "http://referring-site.example.com/" "Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.2.8) Gecko/20100722 Firefox/3.6.8"
+
+195.243.86.188 - - [30/Aug/2010:05:22:39 -0700] "GET /run/mashlogic?guid=90736A04-E438-620E-37E2-78B1907297D9 HTTP/1.1" 200 2423 "http://www.accenture.com/Global/Services/Client_Successes/By_Industry/Communications/Deutsche-Telekom-product-portfo^Clio-optimization.htm" "Mozilla/5.0 (Windows; U; Windows NT 5.1; de; rv:1.9.2) Gecko/20100115 Firefox/3.6 (.NET CLR 3.5.30729)"
