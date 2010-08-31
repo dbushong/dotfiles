@@ -3,7 +3,7 @@ wrap: 72
 wrap-php: no
 tab-size: 8
 indent: yes
-indent-spaces: 1
+indent-spaces: 2
 output-xhtml: yes
 char-encoding: raw
 fix-bad-comments: no
