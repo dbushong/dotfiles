@@ -11,12 +11,14 @@ my $def_fields = 'ip,ident,user,year,mon,day,hour,min,sec,method,path,query,'
 
 my $prog = basename($0);
 my %opt;
-getopts('hf:q', \%opt);
+getopts('hf:qe:', \%opt);
 usage() if $opt{h};
 sub usage {
   die <<EOU;
-usage: $prog [-q] [-f field[,field[,...]]] [file [...]]
+usage: $prog [-q] [-e perl-expr] [-f field[,field[,...]]] [file [...]]
        -q: quiet: no warnings about unparseable lines
+       -e: eval perl string; fields are available as %F
+           true return value => line is printed; false => not
        -f: specify fields (and order) to emit; default is all fields, or:
            $def_fields
 EOU
@@ -33,10 +35,13 @@ my $apache_re = qr{^
     : (\d\d) : (\d\d) : (\d\d)                          # hour min sec
     [ ] [+-] \d{4}
   \] [ ]
-  "
-    ([A-Z]+)                    [ ]  # method
-    (/[^? ]*) (?: \? ([^ ]*) )? [ ]  # path query
-    HTTP/([\d.]+)                    # http
+  " (?:
+      ([A-Z]+)                   [ ]  # method
+      ([^? ]+) (?: \? ([^ ]*) )? [ ]  # path query
+      HTTP/([\d.]+)                   # http
+    | 
+      -
+    )
   " [ ]
   (\d+)       [ ] # code
   (\d+)       [ ] # bytes
@@ -50,22 +55,28 @@ my @mons = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
 my %mon; $mon{$mons[$_]} = $_+1 for 0..11;
 
 while (<>) {
-  my %line;
-  @line{qw(ip ident user day mon year hour min sec method
-           path query http code bytes referrer ua)} = /$apache_re/o;
+  my %F;
+  @F{qw(ip ident user day mon year hour min sec method
+        path query http code bytes referrer ua)} = /$apache_re/o;
 
-  unless ($line{ip}) {
+  unless ($F{ip}) {
     warn "bad line: $_" unless $opt{q};
     next;
   }
   
   for (qw(ident user referrer ua)) {
-    $line{$_} = '' if $line{$_} eq '-';
+    $F{$_} = '' if $F{$_} eq '-';
   }
-  $line{$_}  = $line{$_}+0 for qw(day hour min sec);
-  $line{mon} = $mon{$line{mon}};
+  $F{$_}  = $F{$_}+0 for qw(day hour min sec);
+  $F{mon} = $mon{$F{mon}};
 
-  print(join("\t", map { defined() ? $_ : '' } @line{@fields}), "\n");
+  my $ok = !$opt{e} || eval($opt{e});
+  warn $@ if !$ok && $@;
+  next unless $ok;
+
+  my @values = map { defined() ? $_ : '' } @F{@fields};
+  warn 'removing \t from output' if map { s/\t/ /g ? (1) : () } @values;
+  print(join("\t", @values), "\n");
 }
 
 __END__
