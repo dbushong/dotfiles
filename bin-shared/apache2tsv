@@ -4,6 +4,8 @@ use strict;
 use warnings;
 use Getopt::Std;
 use File::Basename;
+use Time::Local;
+use CGI;
 use utf8;
 
 my $def_fields = 'ip,ident,user,year,mon,day,hour,min,sec,method,path,query,'
@@ -19,12 +21,33 @@ usage: $prog [-q] [-e perl-expr] [-f field[,field[,...]]] [file [...]]
        -q: quiet: no warnings about unparseable lines
        -e: eval perl string; fields are available as %F
            true return value => line is printed; false => not
-       -f: specify fields (and order) to emit; default is all fields, or:
+       -f: specify fields (and order) to emit; default is all real fields, or:
            $def_fields
+           additionally available are dynamic fields, including:
+           ts: unix seconds-since-epoch of timestamp
+           query:<field name>: a single field of the query string
+           query:*: all query string args as key1\\tval1\\tkey2...
+                    note: this can be specified only once, and must be last
 EOU
 }
 
 my @fields = split(/,/, $opt{f} || $def_fields);
+my %fields; $fields{$_}++ for @fields;
+
+# make sure query:* is last, if given
+my $query_star;
+if ($fields{'query:*'}) {
+  usage() if $fields{'query:*'} > 1 || $fields[-1] ne 'query:*';
+  pop(@fields); # remove from general population
+  $query_star = 1;
+  delete $fields{'query:*'};
+}
+
+# note which fields we want split from the query
+my @split_query;
+for (@fields) {
+  push(@split_query, $1) if /^query:(.+)/;
+}
 
 my $apache_re = qr{^
   (\d+\.\d+\.\d+\.\d+) [ ]  # ip
@@ -37,18 +60,17 @@ my $apache_re = qr{^
   \] [ ]
   " (?:
       ([A-Z]+)                   [ ]  # method
-      ([^? ]+) (?: \? ([^ ]*) )? [ ]  # path query
+      ([^?"]+) (?: \? ([^"]*) )? [ ]  # path query
       HTTP/([\d.]+)                   # http
     | 
       -
     )
   " [ ]
   (\d+)       [ ] # code
-  (\d+)       [ ] # bytes
+  (\d+ | -)   [ ] # bytes
   " ([^"]*) " [ ] # referrer
   " ([^"]*) "     # ua
-  \n
-$}x;
+}x;
 
 # build Mon -> num mapping
 my @mons = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
@@ -64,17 +86,36 @@ while (<>) {
     next;
   }
   
-  for (qw(ident user referrer ua)) {
+  for (qw(ident user referrer ua bytes)) {
     $F{$_} = '' if $F{$_} eq '-';
   }
   $F{$_}  = $F{$_}+0 for qw(day hour min sec);
   $F{mon} = $mon{$F{mon}};
+  $F{ts}  = timelocal($F{sec}, $F{min}, $F{hour}, $F{day}, $F{mon}-1, 
+                      $F{year}-1900) if $fields{ts};
+
+  # copy for additions from query:*
+  my @row_fields = @fields;
+
+  # split out query args if requested
+  if ((@split_query || $query_star) && $F{query}) {
+    my $q = CGI->new($F{query});
+    my @row_split_query = @split_query;
+    if ($query_star) {
+      for (sort($q->param)) {
+        push(@row_fields, "query-name:$_", "query:$_");
+        $F{"query-name:$_"} = $_;
+        push(@row_split_query, $_);
+      }
+    }
+    $F{"query:$_"} = $q->param($_) for @row_split_query;
+  }
 
   my $ok = !$opt{e} || eval($opt{e});
   warn $@ if !$ok && $@;
   next unless $ok;
 
-  my @values = map { defined() ? $_ : '' } @F{@fields};
+  my @values = map { defined() ? $_ : '' } @F{@row_fields};
   warn 'removing \t from output' if map { s/\t/ /g ? (1) : () } @values;
   print(join("\t", @values), "\n");
 }
