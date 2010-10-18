@@ -13,12 +13,13 @@ my $def_fields = 'ip,ident,user,year,mon,day,hour,min,sec,method,path,query,'
 
 my $prog = basename($0);
 my %opt;
-getopts('hf:qe:', \%opt);
+getopts('hf:qe:d', \%opt);
 usage() if $opt{h};
 sub usage {
   die <<EOU;
-usage: $prog [-q] [-e perl-expr] [-f field[,field[,...]]] [file [...]]
+usage: $prog [-q] [-d] [-e perl-expr] [-f field[,field[,...]]] [file [...]]
        -q: quiet: no warnings about unparseable lines
+       -d: output header line as first line
        -e: eval perl string; fields are available as %F
            true return value => line is printed; false => not
        -f: specify fields (and order) to emit; default is all real fields, or:
@@ -75,6 +76,9 @@ my $apache_re = qr{^
 # build Mon -> num mapping
 my @mons = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
 my %mon; $mon{$mons[$_]} = $_+1 for 0..11;
+
+# output header if requested (need to re-push virtual query:* arg)
+print(join("\t", @fields, $query_star ? 'query:*' : ()), "\n") if $opt{d};
 
 while (<>) {
   my %F;
