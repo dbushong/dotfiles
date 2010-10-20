@@ -4,8 +4,7 @@ use strict;
 use warnings;
 use Getopt::Std;
 use File::Basename;
-use Time::Local;
-use CGI;
+use Time::Local 'timelocal_nocheck';
 use utf8;
 
 my $def_fields = 'ip,ident,user,year,mon,day,hour,min,sec,method,path,query,'
@@ -13,15 +12,17 @@ my $def_fields = 'ip,ident,user,year,mon,day,hour,min,sec,method,path,query,'
 
 my $prog = basename($0);
 my %opt;
-getopts('hf:qe:d', \%opt);
+getopts('hf:qe:do:', \%opt);
 usage() if $opt{h};
 sub usage {
   die <<EOU;
-usage: $prog [-q] [-d] [-e perl-expr] [-f field[,field[,...]]] [file [...]]
+usage: $prog [-q] [-d] [-e perl-expr] [-f field[,field[,...]]] [-o outfile] \\
+             [file [...]]
        -q: quiet: no warnings about unparseable lines
        -d: output header line as first line
        -e: eval perl string; fields are available as %F
            true return value => line is printed; false => not
+       -o: write to outfile (instead of stdout)
        -f: specify fields (and order) to emit; default is all real fields, or:
            $def_fields
            additionally available are dynamic fields, including:
@@ -77,8 +78,17 @@ my $apache_re = qr{^
 my @mons = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
 my %mon; $mon{$mons[$_]} = $_+1 for 0..11;
 
+# open output
+my $fh;
+if (exists $opt{o}) {
+  open($fh, '>', $opt{o}) || die "couldn't open $opt{o}: $!\n";
+}
+else {
+  $fh = \*STDOUT;
+}
+
 # output header if requested (need to re-push virtual query:* arg)
-print(join("\t", @fields, $query_star ? 'query:*' : ()), "\n") if $opt{d};
+print $fh (join("\t", @fields, $query_star ? 'query:*' : ()), "\n") if $opt{d};
 
 while (<>) {
   my %F;
@@ -95,24 +105,40 @@ while (<>) {
   }
   $F{$_}  = $F{$_}+0 for qw(day hour min sec);
   $F{mon} = $mon{$F{mon}};
-  $F{ts}  = timelocal($F{sec}, $F{min}, $F{hour}, $F{day}, $F{mon}-1, 
-                      $F{year}-1900) if $fields{ts};
+  $F{ts}  = timelocal_nocheck($F{sec}, $F{min}, $F{hour}, $F{day}, $F{mon}-1, 
+                              $F{year}-1900) if $fields{ts};
 
   # copy for additions from query:*
   my @row_fields = @fields;
 
   # split out query args if requested
-  if ((@split_query || $query_star) && $F{query}) {
-    my $q = CGI->new($F{query});
-    my @row_split_query = @split_query;
-    if ($query_star) {
-      for (sort($q->param)) {
-        push(@row_fields, "query-name:$_", "query:$_");
-        $F{"query-name:$_"} = $_;
-        push(@row_split_query, $_);
-      }
+  if ((@split_query||$query_star) && $F{query}) {
+
+    # cheese: turns foo=bar&baz=garply into foo\xffbar\xfebaz\xffgarply
+    #         so it can be unescaped in one pass
+    my $s = $F{query};
+    $s =~ s/&/\xfe/g;
+    $s =~ s/=/\xff/g;
+    $s =~ s/%f[ef]//gi;
+    $s =~ s/\+/ /g;
+    $s =~ s/%([A-F0-9]{2})/chr(hex($1))/gei;
+
+    my %q;
+    for (split(/\xfe/, $s)) {
+      my ($k, $v) = /^([^=]+)\xff(.+)/;
+      $q{$k} = $v if defined $k;
     }
-    $F{"query:$_"} = $q->param($_) for @row_split_query;
+    if (%q) {
+      my @row_split_query = @split_query;
+      if ($query_star) {
+        for (sort(keys(%q))) {
+          push(@row_fields, "query-name:$_", "query:$_");
+          $F{"query-name:$_"} = $_;
+          push(@row_split_query, $_);
+        }
+      }
+      $F{"query:$_"} = $q{$_} for @row_split_query;
+    }
   }
 
   my $ok = !$opt{e} || eval($opt{e});
@@ -121,8 +147,10 @@ while (<>) {
 
   my @values = map { defined() ? $_ : '' } @F{@row_fields};
   warn 'removing \t from output' if map { s/\t/ /g ? (1) : () } @values;
-  print(join("\t", @values), "\n");
+  print $fh (join("\t", @values), "\n");
 }
+
+close($fh) if exists $opt{o};
 
 __END__
 
