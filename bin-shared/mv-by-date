@@ -11,6 +11,8 @@ use File::Path;
 use File::Copy;
 use File::Find;
 
+$| = 1;
+
 my $def_fmt = '%Y/%m/%d';
 
 my %opt;

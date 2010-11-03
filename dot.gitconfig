@@ -6,3 +6,4 @@
 	co = checkout
 	st = status
 	br = branch
+        ls = ls-files
