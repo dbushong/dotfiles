@@ -1,1 +1,1 @@
-compiler yaml
+autocmd BufNewFile,BufRead *.yml compiler yaml
