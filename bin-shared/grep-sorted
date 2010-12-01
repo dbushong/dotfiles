@@ -22,9 +22,10 @@ EOU
 # argument handling
 my ($match, $file) = @ARGV;
 
-my $numeric = $opt{n};
-my $debug   = $opt{d};
-my $strip   = $opt{s};
+my $numeric  = $opt{n};
+my $debug    = $opt{d};
+my $strip    = $opt{s};
+my $match_re = quotemeta($match);
 
 # setup
 open(my $fh, '<', $file) || die "$prog: couldn't open $file for reading: $!\n";
@@ -37,12 +38,14 @@ seek($fh, $incr, 0); <$fh>;
 # main loop
 while (1) {
   my $line = <$fh>;
+  exit unless defined $line;
   chomp($line);
 
   my $cmp = $line;
   $cmp =~ s/^$strip//o if $strip;
+  $cmp =~ s/[^\d.].*// if $numeric;
 
-  if ($cmp =~ /$match_re/o) {
+  if ($cmp =~ /^$match_re/o) {
     print STDERR ("found $match at ", tell($fh), "\n") if $debug;
     if ($finding) {
       print STDERR "was in finding mode; set found to 1\n" if $debug;
@@ -66,7 +69,7 @@ while (1) {
   my $lge = $numeric ? $cmp <=> $match : $cmp cmp $match;
 
   $incr = int($incr / 2);
-  if ($lge < 0) {
+  if ($lge > 0) {
     exit unless tell($fh);
     print STDERR "$cmp < $match ; seeking backward $incr\n" if $debug;
     seek($fh, -$incr, 1);
