@@ -1,0 +1,80 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Getopt::Std;
+use File::Basename;
+use utf8;
+
+my $prog = basename($0);
+my %opt;
+getopts('hdns:', \%opt);
+usage() if $opt{h} || @ARGV != 2 || ($opt{I} && !$opt{c})
+        || ($opt{n} && $opt{i});
+sub usage {
+  die <<EOU;
+usage: $prog [-n] [-s strip-regexp] match file
+       -n: compare numerically (input needs to be sort -n'ed)
+       -s: regexp of stuff to strip from beginning of line before comparing
+EOU
+}
+
+# argument handling
+my ($match, $file) = @ARGV;
+
+my $numeric = $opt{n};
+my $debug   = $opt{d};
+my $strip   = $opt{s};
+
+# setup
+open(my $fh, '<', $file) || die "$prog: couldn't open $file for reading: $!\n";
+my $total = -s $file || exit;
+my $incr  = int($total / 2);
+my $found = 0;
+my $finding = 0;
+seek($fh, $incr, 0); <$fh>;
+
+# main loop
+while (1) {
+  my $line = <$fh>;
+  chomp($line);
+
+  my $cmp = $line;
+  $cmp =~ s/^$strip//o if $strip;
+
+  if ($cmp =~ /$match_re/o) {
+    print STDERR ("found $match at ", tell($fh), "\n") if $debug;
+    if ($finding) {
+      print STDERR "was in finding mode; set found to 1\n" if $debug;
+      $found   = 1;
+      $finding = 0;
+    }
+    elsif (!$found) {
+      $finding = 1;
+      seek($fh, -int($incr/2), 1);
+      print STDERR ("set finding mode, seeking backwards to ", tell($fh), "\n")
+        if $debug;
+      next;
+    }
+    print "$line\n";
+    next;
+  }
+
+  next if $finding;
+  exit if $found || !$incr;
+
+  my $lge = $numeric ? $cmp <=> $match : $cmp cmp $match;
+
+  $incr = int($incr / 2);
+  if ($lge < 0) {
+    exit unless tell($fh);
+    print STDERR "$cmp < $match ; seeking backward $incr\n" if $debug;
+    seek($fh, -$incr, 1);
+  }
+  else {
+    exit if eof($fh);
+    print STDERR "$cmp > $match ; seeking forward $incr\n" if $debug;
+    seek($fh, $incr, 1);
+  }
+  <$fh>; #trim possibly trailing line
+}
