@@ -8,10 +8,10 @@
 	br = branch
         ls = ls-files
 [color]
-          ui = true
+	ui = true
 [color "grep"]
-          match = normal bold
+	match = normal bold
 [color "status"]
-          added = green bold
+	added = green bold
 [branch]
-          autosetuprebase = always
+	autosetuprebase = always
