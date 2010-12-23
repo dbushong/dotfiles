@@ -1,0 +1,6 @@
+#!/bin/sh
+
+prog=`basename $0`
+dir=`mktemp -d --tmpdir $prog.XXXXX`
+google-chrome --user-data-dir=$dir "$@" >/dev/null 2>&1
+rm -rf $dir
