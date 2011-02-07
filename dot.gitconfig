@@ -15,3 +15,5 @@
 	added = green bold
 [branch]
 	autosetuprebase = always
+[push]
+	default = tracking
