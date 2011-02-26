@@ -1,7 +1,14 @@
 #!/bin/sh
 
 prog=`basename $0`
-dir=`mktemp -d --tmpdir $prog.XXXXX`
-google-chrome --no-first-run --no-make-default-browser --disable-metrics \
-              --homepage=about:blank --user-data-dir=$dir "$@" >/dev/null 2>&1
+if [ `uname` = Darwin ]; then
+  dir=`mktemp -d -p /tmp $prog.XXXXX` 
+  chrome="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+else
+  dir=`mktemp -d --tmpdir $prog.XXXXX`
+  chrome=google-chrome
+fi
+
+"$chrome" --no-first-run --no-make-default-browser --disable-metrics \
+          --homepage=about:blank --user-data-dir="$dir" "$@" >/dev/null 2>&1
 rm -rf $dir
