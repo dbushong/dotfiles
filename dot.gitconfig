@@ -1,6 +1,3 @@
-[user]
-	name = David Bushong
-	email = david@bushong.net
 [alias]
 	ci = commit
 	co = checkout
@@ -15,3 +12,5 @@
 	added = green bold
 [branch]
 	autosetuprebase = always
+[push]
+        default = tracking
