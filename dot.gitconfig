@@ -13,4 +13,4 @@
 [branch]
 	autosetuprebase = always
 [push]
-        default = tracking
+	default = tracking
