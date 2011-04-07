@@ -3,7 +3,8 @@
 	co = checkout
 	st = status
 	br = branch
-        ls = ls-files
+	ls = ls-files
+	master2maint = !git co maint && git merge --ff-only master && git push && git co master
 [color]
 	ui = true
 [color "grep"]
