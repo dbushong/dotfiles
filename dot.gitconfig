@@ -15,3 +15,7 @@
 	autosetuprebase = always
 [push]
 	default = tracking
+[diff]
+	tool = meld
+[difftool]
+	prompt = false
