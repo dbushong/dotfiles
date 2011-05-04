@@ -9,59 +9,107 @@ use Getopt::Std;
 use File::Basename;
 use Config::IniFiles;
 use File::Path;
+use File::Temp;
+use LWP::Simple;
 use POSIX 'strftime';
 
 my $prog = basename($0);
 my %opt;
-getopts('hc:d:p:Rv', \%opt);
+getopts('hc:p:Rvx:', \%opt);
 usage() if $opt{h};
 sub usage {
   die <<EOU;
-usage: $prog [-v] [-c cmd] [-R] [-d dup-profile] [-p profile-name] \\
+usage: $prog [-v] [-c cmd] [-R] [-p profile-name] [-x 'ext1.xpi ...'] \\
              [more ff options]
        -c: specify command, e.g. firefox-3.0 or firefox-3.5; default: firefox
-       -d: duplicate a given existing profile
        -R: don't remove the profile when done
        -p: specify a name for the profile instead of autogenerating
+       -x: specify a (space-separated) list of extensions to pre-install;
+           they may be: * local path to a directory
+                        * local path to a .xpi file
+                        * url to a .xpi file
        -v: verbose
 EOU
 }
 
 # Initialization
-my $ff   = (exists($opt{c}) ? $opt{c} : 'firefox') . ' -no-remote';
-my $prof = exists($opt{p}) 
-         ? $opt{p} : strftime('tmp-%y%m%d%H%M%S', localtime());
+my $ff      = (exists($opt{c}) ? $opt{c} : 'firefox') . ' -no-remote';
+my $prof    = exists($opt{p})
+            ? $opt{p} : strftime('tmp-%y%m%d%H%M%S', localtime());
+my $no_rm   = $opt{R};
+my $verbose = $opt{v};
+my @exts    = split(/\s+/, $opt{x} // '');
 
 # Create new Profile and capture its path
 my $cp = `$ff -CreateProfile $prof 2>&1`;
-$cp =~ m{^Success: created profile '$prof' at '([^']+)/([^/]+)/prefs.js'$}m
+$cp =~ m{^Success: created profile '$prof' at '(([^']+)/([^/]+))/prefs.js'$}m
   || die "$prog: bad output from $ff -CreateProfile $prof: $cp\n";
-my ($profiles_dir, $path) = ($1, $2);
-print "created profile $prof at $profiles_dir/$path\n" if $opt{v};
+my ($ppath, $profiles_dir, $path) = ($1, $2, $3);
+print "created profile $prof at $ppath\n" if $verbose;
 
-# Clone existing over top, if requested
-my $ini = "$profiles_dir/profiles.ini";
-my $cfg = Config::IniFiles->new(-file => $ini);
-if ($opt{d}) {
-  my $cpath = $cfg->val(find_profile_section(Name => $opt{d}), 'Path');
-  die "DOESN'T WORK";
+my $ini   = "$profiles_dir/profiles.ini";
+my $cfg   = Config::IniFiles->new(-file => $ini);
+my $epath = "$ppath/extensions";
+
+# Install extensions, if requested
+for my $ext (@exts) {
+  my $tmp;
+  if ($ext =~ m{^https?://}) {
+    $tmp = new File::Temp;
+    my $xpi = get($ext) // die "$prog: couldn't fetch $ext\n";
+    print $tmp ($xpi);
+    close($tmp);
+    $ext = $tmp->filename;
+  }
+
+  mkdir $epath unless -d $path;
+
+  if (-d $ext) {
+    open(my $fh, '<', "$ext/install.rdf")
+      || die "$prog: couldn't open $ext/install.rdf: $!\n";
+    my $dst = ext_path(join('', <$fh>));
+    close($fh);
+    die "$prog: failed to copy $ext to $dst\n"
+      if (system('cp', '-r', $ext, $dst) >> 8);
+  }
+  elsif (-f $ext) {
+    my $rdf = `unzip -p \Q$ext\E install.rdf 2>/dev/null`
+      || die "$prog: failed to extract install.rdf from $ext\n";
+    my $dst = ext_path($rdf);
+    die "$prog: failed to unzip $ext into $dst\n"
+      if (system("unzip -qd \Q$dst\E \Q$ext\E 2>/dev/null") >> 8);
+  }
+  else {
+    die "$prog: couldn't find extension file $ext\n";
+  }
 }
 
 # Run Firefox on the new profile
 my $run = "$ff -P $prof";
 $run .= ' ' . join(' ', map { quotemeta } @ARGV) if @ARGV;
-print "running $run\n" if $opt{v};
-exec($run) if $opt{R};
+print "running $run\n" if $verbose;
+exec($run) if $no_rm; # we'll exit when we're done if we don't plan on GCing
 system($run);
 
+                    ###############################
+#####################  Firefox session runs here  ############################
+                    ###############################
+
 # Clear out the tmp profile
-print "clearing profile with Path=$path from $ini\n" if $opt{v};
+print "clearing profile with Path=$path from $ini\n" if $verbose;
 $cfg->DeleteSection(find_profile_section(Path => $path));
 $cfg->WriteConfig($ini);
 
 # Delete the profile dir
-print "removing $profiles_dir/$path\n" if $opt{v};
+print "removing $profiles_dir/$path\n" if $verbose;
 rmtree("$profiles_dir/$path");
+
+sub ext_path {
+  my ($rdf) = @_;
+  $rdf =~ /<em:id>([^<]+)/
+    || die "$prog: couldn't find <em:id> in install.rdf: $rdf\n";
+  "$epath/$1";
+}
 
 sub find_profile_section {
   my ($key, $val) = @_;
