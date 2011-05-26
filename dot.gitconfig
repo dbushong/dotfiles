@@ -1,9 +1,21 @@
-[user]
-	name = David Bushong
-	email = david@bushong.net
 [alias]
 	ci = commit
 	co = checkout
 	st = status
 	br = branch
-        ls = ls-files
+	ls = ls-files
+	master2maint = !git co maint && git merge --ff-only master && git push && git co master
+[color]
+	ui = true
+[color "grep"]
+	match = normal bold
+[color "status"]
+	added = green bold
+[branch]
+	autosetuprebase = always
+[push]
+	default = tracking
+[diff]
+	tool = meld
+[difftool]
+	prompt = false
