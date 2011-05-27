@@ -1,0 +1,15 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+while (<>) {
+  s/\d{4,}/commaify($&)/ge;
+  print;
+}
+
+sub commaify {
+  my ($n) = @_;
+  $n =~ s/\d(?=(?:\d\d\d)+\b)/$&,/g;
+  $n;
+}
