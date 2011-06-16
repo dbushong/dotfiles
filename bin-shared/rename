@@ -11,7 +11,9 @@
 
 use File::Basename;
 use Getopt::Std;
+use File::Path 'make_path';
 use strict;
+use warnings;
 
 ## argument handling
 my %opt;
@@ -78,5 +80,9 @@ if ($opt{c}) {
 sub do_rename {
   my ($old, $new) = @_;
   print "$old -> $new\n" if $opt{v};
-  rename($old, $new) unless $opt{n};
+  unless ($opt{n}) {
+    my $dir = dirname($new);
+    make_path($dir) unless -d $dir;
+    rename($old, $new) || warn "$prog: rename failed: $!\n";
+  }
 }
