@@ -32,8 +32,7 @@ $| = 1;
 
 while (1) {
   # interactive paging view
-  system(join('|', map { join(' ', map { quotemeta } @$_) } @cmds, $pager))
-    || die "$prog: command failed\n";
+  system(join('|', map { join(' ', map { quotemeta } @$_) } @cmds, $pager));
 
   # command prompt reading
   READ:
