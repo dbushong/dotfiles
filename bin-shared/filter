@@ -18,7 +18,8 @@ usage: $prog [-g grep-cmd] cmd [args]
        -g: grep command to use; default is value of \$FILTER_GREP env 
            var (currently: $filtgrep) followed by "grep"
            useful alternatives are:
-           pcregrep, egrep, fgrep (must accept -v flag to invert)
+           pcregrep, egrep, fgrep (must accept -v flag to invert and -e flag
+           for expression)
 EOU
 }
 
@@ -34,15 +35,16 @@ while (1) {
   system(join('|', map { join(' ', map { quotemeta } @$_) } @cmds, $pager));
 
   # command prompt reading
+  READ:
   while (1) {
     print "$prog> ";
     my $filt = <STDIN>;
+    exit unless defined $filt;
     chomp($filt);
 
     # quit
     if ($filt =~ /^\s*q/i) {
-      # TODO: better output
-      use Data::Dumper; print Dumper \@cmds;
+      print(join(' | ', map { join(' ', map { squote($_) } @$_) } @cmds), "\n");
       exit;
     }
     # enhance filter
@@ -54,22 +56,31 @@ while (1) {
       else {
         push(@exclude, $pat);
       }
-      @cmds = ([@ARGV]);
-      # TODO: try to merge these into a single regexp?  requires knowledge
-      # of regexp engine...
-      push(@cmds, [ $grep,       $_ ]) for @include;
-      push(@cmds, [ $grep, '-v', $_ ]) for @exclude;
+      rebuild_cmds();
       last;
     }
     # list filters
     elsif ($filt =~ /^\s*l/i) {
       my $n;
-      print(++$n, " i $_\n") for @include;
-      print(++$n, " i $_\n") for @exclude;
+      printf("%2d) i %s\n", ++$n, $_) for @include;
+      printf("%2d) x %s\n", ++$n, $_) for @exclude;
     }
     # delete filter
     elsif ($filt =~ /^\s*d\s+(\d+)/i) {
-      die 'not yet implemented';
+      my $del = $1;
+      my $n;
+      for my $set (\@include, \@exclude) {
+        my $i = 0;
+        for (@$set) {
+          if (++$n == $del) {
+            splice(@$set, $i, 1);
+            rebuild_cmds();
+            last READ;
+          }
+          $i++;
+        }
+      }
+      print "no such filter number $del\n";
     }
     # view results
     elsif ($filt =~ /^\s*v/i) {
@@ -95,4 +106,20 @@ q: write current filter pipeline and exit
 EOF
     }
   }
+}
+
+sub squote {
+  my ($str) = @_;
+  return $str unless $str =~ /['"`~!#\$^&*()={}[]|\\;<>?\s]/;
+  $str =~ s,\\,\\\\,g;
+  $str =~ s/'/'\\''/g;
+  "'$str'";
+}
+
+sub rebuild_cmds {
+  @cmds = ([@ARGV]);
+  # TODO: try to merge these into a single regexp?  requires knowledge
+  # of regexp engine...
+  push(@cmds, [ $grep,  '-e', $_ ]) for @include;
+  push(@cmds, [ $grep, '-ve', $_ ]) for @exclude;
 }
