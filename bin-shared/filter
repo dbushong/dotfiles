@@ -1,44 +1,98 @@
-#!/bin/sh -e
-#
-# filter - build up progress filtering of data, interactively
-#          TODO: use single compound regexp
-#          TODO: handle quoting more safely
-#          TODO: selectable inversion
-#
+#!/usr/bin/perl
 
-PROG=`basename $0`
-temp=`getopt -o hv -n $PROG -- "$@"`
-if [ $? != 0 ] ; then echo "Terminating..." >&2 ; exit 1 ; fi
-eval set -- "$temp"
+use strict;
+use warnings;
+use Getopt::Std;
+use File::Basename;
+use utf8;
 
-usage () {
-  cat <<EOF >&2
-usage: $PROG [-v] command [args]
-       -v: treat all filters as 
-EOF
-  exit 1
+my $filtgrep = $ENV{FILTER_GREP} || 'unset';
+
+my $prog = basename($0);
+my %opt;
+getopts('hg:', \%opt);
+usage() if $opt{h} || !@ARGV;
+sub usage {
+  die <<EOU;
+usage: $prog [-g grep-cmd] cmd [args]
+       -g: grep command to use; default is value of \$FILTER_GREP env 
+           var (currently: $filtgrep) followed by "grep"
+           useful alternatives are:
+           pcregrep, egrep, fgrep (must accept -v flag to invert)
+EOU
 }
 
-DASH_V=''
-while true; do
-  case $1 in
-    -h) usage ;;
-    -v) DASH_V='-v' ; shift ;;
-    --) shift ; break ;;
-     *) echo 'internal error' >&2 ; exit 1 ;;
-  esac
-done
+my @cmds  = ([@ARGV]);
+my $pager = [$ENV{PAGER} || 'less'];
+my $grep  = $opt{g} || $ENV{FILTER_GREP} || 'grep';
+my (@include, @exclude);
 
-[ $# -ge 1 ] || usage
+$| = 1;
 
-FILTER='cat'
-while true; do
-  eval "$@ | $FILTER | ${PAGER:-less}"
-  echo -n "filter: "
-  read filt
-  if [ z$filt = z ]; then
-    echo "$@" "| $FILTER" | sed 's, | cat,,'
-    exit
-  fi
-  FILTER="$FILTER | egrep $DASH_V '$filt'"
-done
+while (1) {
+  # interactive paging view
+  system(join('|', map { join(' ', map { quotemeta } @$_) } @cmds, $pager));
+
+  # command prompt reading
+  while (1) {
+    print "$prog> ";
+    my $filt = <STDIN>;
+    chomp($filt);
+
+    # quit
+    if ($filt =~ /^\s*q/i) {
+      # TODO: better output
+      use Data::Dumper; print Dumper \@cmds;
+      exit;
+    }
+    # enhance filter
+    elsif ($filt =~ /^\s*([ix])\s+(.+)/i) {
+      my ($type, $pat) = ($1, $2);
+      if ($type eq 'i') {
+        push(@include, $pat);
+      }
+      else {
+        push(@exclude, $pat);
+      }
+      @cmds = ([@ARGV]);
+      # TODO: try to merge these into a single regexp?  requires knowledge
+      # of regexp engine...
+      push(@cmds, [ $grep,       $_ ]) for @include;
+      push(@cmds, [ $grep, '-v', $_ ]) for @exclude;
+      last;
+    }
+    # list filters
+    elsif ($filt =~ /^\s*l/i) {
+      my $n;
+      print(++$n, " i $_\n") for @include;
+      print(++$n, " i $_\n") for @exclude;
+    }
+    # delete filter
+    elsif ($filt =~ /^\s*d\s+(\d+)/i) {
+      die 'not yet implemented';
+    }
+    # view results
+    elsif ($filt =~ /^\s*v/i) {
+      last;
+    }
+    # file output
+    elsif ($filt =~ /^\s*o\s+(.+)/i) {
+      system(join('|', map { join(' ', map { quotemeta } @$_) } @cmds)
+        . ' > ' . quotemeta($1)) && die "$prog: output failed\n";
+      print "output written to $1\n";
+    }
+    # help
+    else {
+      print <<'EOF';
+commands:
+i <pattern>: include only lines matching given pattern
+x <pattern>: exclude all lines matching given pattern
+o <file>: write results of filtering to given file
+l: list current filters
+v: view output again
+d <n>: delete given numbered filter
+q: write current filter pipeline and exit
+EOF
+    }
+  }
+}
