@@ -5,6 +5,10 @@ use warnings;
 use Getopt::Std;
 use File::Basename;
 use utf8;
+use Storable qw(retrieve lock_store);
+use Data::Dumper;
+
+# TODO: add readline support
 
 my $filtgrep = $ENV{FILTER_GREP} || 'unset';
 
@@ -26,6 +30,8 @@ EOU
 my @cmds  = ([@ARGV]);
 my $pager = [$ENV{PAGER} || 'less'];
 my $grep  = $opt{g} || $ENV{FILTER_GREP} || 'grep';
+my $hfile = (getpwuid($<))[7] . "/.${prog}_history";
+my @hist = @{-f $hfile ? retrieve($hfile) : []};
 my (@include, @exclude);
 
 $| = 1;
@@ -38,17 +44,26 @@ while (1) {
   READ:
   while (1) {
     print "$prog> ";
-    my $filt = <STDIN>;
-    exit unless defined $filt;
-    chomp($filt);
+    my $action = <STDIN>;
+    exit unless defined $action; # ^D to exit quickly
+    chomp($action);
 
     # quit
-    if ($filt =~ /^\s*q/i) {
-      print(join(' | ', map { join(' ', map { squote($_) } @$_) } @cmds), "\n");
+    if ($action =~ /^\s*q/i) {
+      print(explain(\@include, \@exclude), "\n");
+      # FIXME: should probably reread the history file before rewriting it
+      #        *shrug*
+      my $entry  = [ \@include, \@exclude ];
+      my $dentry = Dumper($entry);
+      unless (grep { $dentry ne Dumper($_) } @hist) {
+        push(@hist, $entry);
+        shift(@hist) if @hist > 10;
+        lock_store(\@hist, $hfile);
+      }
       exit;
     }
     # enhance filter
-    elsif ($filt =~ /^\s*([ix])\s+(.+)/i) {
+    elsif ($action =~ /^\s*([ix])\s(.+)/i) {
       my ($type, $pat) = ($1, $2);
       if ($type eq 'i') {
         push(@include, $pat);
@@ -60,13 +75,13 @@ while (1) {
       last;
     }
     # list filters
-    elsif ($filt =~ /^\s*l/i) {
+    elsif ($action =~ /^\s*l/i) {
       my $n;
       printf("%2d) i %s\n", ++$n, $_) for @include;
       printf("%2d) x %s\n", ++$n, $_) for @exclude;
     }
     # delete filter
-    elsif ($filt =~ /^\s*d\s+(\d+)/i) {
+    elsif ($action =~ /^\s*d\s+(\d+)/i) {
       my $del = $1;
       my $n;
       for my $set (\@include, \@exclude) {
@@ -83,11 +98,29 @@ while (1) {
       print "no such filter number $del\n";
     }
     # view results
-    elsif ($filt =~ /^\s*v/i) {
+    elsif ($action =~ /^\s*v/i) {
       last;
     }
+    # history
+    elsif ($action =~ /^\s*h(?:\s+(\d+))?/i) {
+      my $i = $1;
+      if ($i) {
+        if ($i < 1 || $i > @hist) {
+          print "out of range of available history\n";
+        }
+        else {
+          @include = @{$hist[$i-1][0]};
+          @exclude = @{$hist[$i-1][1]};
+          rebuild_cmds();
+          last READ;
+        }
+      }
+      else {
+        printf("%2d) %s\n", $_+1, explain(@{$hist[$_]})) for 0..$#hist;
+      }
+    }
     # file output
-    elsif ($filt =~ /^\s*o\s+(.+)/i) {
+    elsif ($action =~ /^\s*o\s+(.+)/i) {
       system(join('|', map { join(' ', map { quotemeta } @$_) } @cmds)
         . ' > ' . quotemeta($1)) && die "$prog: output failed\n";
       print "output written to $1\n";
@@ -100,8 +133,9 @@ i <pattern>: include only lines matching given pattern
 x <pattern>: exclude all lines matching given pattern
 o <file>: write results of filtering to given file
 l: list current filters
-v: view output again
 d <n>: delete given numbered filter
+h [n]: list filterset history or load numbered set
+v: view output again
 q: write current filter pipeline and exit
 EOF
     }
@@ -117,9 +151,20 @@ sub squote {
 }
 
 sub rebuild_cmds {
-  @cmds = ([@ARGV]);
+  @cmds = build_cmds(\@include, \@exclude);
+}
+
+sub build_cmds {
+  my ($inc, $ex) = @_;
+  my @c = ([@ARGV]);
   # TODO: try to merge these into a single regexp?  requires knowledge
   # of regexp engine...
-  push(@cmds, [ $grep,  '-e', $_ ]) for @include;
-  push(@cmds, [ $grep, '-ve', $_ ]) for @exclude;
+  push(@c, [ $grep,  '-e', $_ ]) for @$inc;
+  push(@c, [ $grep, '-ve', $_ ]) for @$ex;
+  @c;
+}
+
+sub explain {
+  my @c = build_cmds(@_);
+  join(' | ', map { join(' ', map { squote($_) } @$_) } @c);
 }
