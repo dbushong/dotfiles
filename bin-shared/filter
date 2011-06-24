@@ -1,0 +1,44 @@
+#!/bin/sh -e
+#
+# filter - build up progress filtering of data, interactively
+#          TODO: use single compound regexp
+#          TODO: handle quoting more safely
+#          TODO: selectable inversion
+#
+
+PROG=`basename $0`
+temp=`getopt -o hv -n $PROG -- "$@"`
+if [ $? != 0 ] ; then echo "Terminating..." >&2 ; exit 1 ; fi
+eval set -- "$temp"
+
+usage () {
+  cat <<EOF >&2
+usage: $PROG [-v] command [args]
+       -v: treat all filters as 
+EOF
+  exit 1
+}
+
+DASH_V=''
+while true; do
+  case $1 in
+    -h) usage ;;
+    -v) DASH_V='-v' ; shift ;;
+    --) shift ; break ;;
+     *) echo 'internal error' >&2 ; exit 1 ;;
+  esac
+done
+
+[ $# -ge 1 ] || usage
+
+FILTER='cat'
+while true; do
+  eval "$@ | $FILTER | ${PAGER:-less}"
+  echo -n "filter: "
+  read filt
+  if [ z$filt = z ]; then
+    echo "$@" "| $FILTER" | sed 's, | cat,,'
+    exit
+  fi
+  FILTER="$FILTER | egrep $DASH_V '$filt'"
+done
