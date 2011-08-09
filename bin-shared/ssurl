@@ -4,6 +4,8 @@
 #         TODO: support multiple services, don't do just screenshots
 #
 # requires: notify-send(1), curl(1), xsel(1)
+#
+# TODO: maybe just use one of these: http://imgur.com/tools/
 
 use strict;
 use warnings;
