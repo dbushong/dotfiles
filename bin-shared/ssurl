@@ -38,12 +38,20 @@ splice(@shots, $num);
 
 for my $file (@shots) {
   # TODO: use LWP
-  open(my $fh, '-|', 'curl', '-F', "file=\@$dir/$file;type=image/png", '-is',
+  my $ph;
+  open($ph, '-|', 'curl', '-F', "file=\@$dir/$file;type=image/png", '-is',
                              '-F', '__submit=Upload', 'http://simimage.com/')
     || die $!;
-  my $res =  do { local $/; <$fh> };
-  close($fh);
+  my $res =  do { local $/; <$ph> };
+  close($ph);
   $res =~ /HTTP\/1.1 302 Found.+?[lL]ocation:\s+(\S+)/s
     || die "couldn't find redirect\n";
-  print "http://simimage.com/f$1\n";
+  my $url = "http://simimage.com/f$1";
+  print "$url\n";
+  # save to cutbuffer if only request
+  if (@shots == 1) {
+    open($ph, '|-', 'xsel', '-i');
+    print $ph $url;
+    close($ph);
+  }
 }
