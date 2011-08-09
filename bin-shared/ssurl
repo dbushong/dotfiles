@@ -3,6 +3,7 @@
 # ssurl - upload a screenshot and get a public url for it
 #         TODO: support multiple services, don't do just screenshots
 #
+# requires: notify-send(1), curl(1), xsel(1)
 
 use strict;
 use warnings;
@@ -11,22 +12,21 @@ use File::Basename;
 use utf8;
 
 my $dir = (getpwuid($<))[7] . '/Desktop';
-my $num = 1;
 
 my $prog = basename($0);
 my %opt;
-getopts('hd:n:', \%opt);
+getopts('hd:N', \%opt);
 usage() if $opt{h} || @ARGV;
 sub usage {
   die <<EOU;
-usage: $prog [-d dir] [-n num]
+usage: $prog [-d dir] [-N]
        -d: dir to check for new screenshots; default: $dir
-       -n: number most recent to upload; default: $num
+       -N: don't bother using notify-send(1)
 EOU
 }
 
 $dir = $opt{d} if $opt{d};
-$num = $opt{n} if $opt{n};
+my $no_notify = $opt{N};
 
 opendir(my $dh, $dir) || die $!;
 my @shots = sort {
@@ -34,24 +34,25 @@ my @shots = sort {
 } grep(/^(Screenshot(-\d+)?|screenshot\d+)\.png$/, readdir($dh));
 closedir($dh);
 
-splice(@shots, $num);
+die "$prog: no shots found\n" unless @shots;
 
-for my $file (@shots) {
-  # TODO: use LWP
-  my $ph;
-  open($ph, '-|', 'curl', '-F', "file=\@$dir/$file;type=image/png", '-is',
-                             '-F', '__submit=Upload', 'http://simimage.com/')
-    || die $!;
-  my $res =  do { local $/; <$ph> };
-  close($ph);
-  $res =~ /HTTP\/1.1 302 Found.+?[lL]ocation:\s+(\S+)/s
-    || die "couldn't find redirect\n";
-  my $url = "http://simimage.com/f$1";
-  print "$url\n";
-  # save to cutbuffer if only request
-  if (@shots == 1) {
-    open($ph, '|-', 'xsel', '-i');
-    print $ph $url;
-    close($ph);
-  }
-}
+my $file = "$dir/$shots[0]";
+
+# TODO: use LWP
+my $ph;
+open($ph, '-|', 'curl', '-F', "file=\@$file;type=image/png", '-is',
+                        '-F', '__submit=Upload', 'http://simimage.com/')
+  || die $!;
+my $res =  do { local $/; <$ph> };
+close($ph);
+
+$res =~ /HTTP\/1.1 302 Found.+?[lL]ocation:\s+(\S+)/s
+  || die "couldn't find redirect\n";
+my $url = "http://simimage.com/f$1";
+print "$url\n";
+
+open($ph, '|-', 'xsel', '-i');
+print $ph $url;
+close($ph);
+
+system('notify-send', '-t', 5, 'screenshot', $url) unless $no_notify;
