@@ -31,6 +31,20 @@ fgl() { fgrep --color=always "$@" | less }
 egl() { egrep --color=always "$@" | less }
 alias last-paste='cat ~/.paste/*(On[1])'
 
+# git prompt stuffs
+function precmd() {
+  local br _left _branch _right
+
+  _left='%B%m%b '
+  _right='%~ %B[%t]%b '
+  
+  br=$(git symbolic-ref HEAD 2>/dev/null) && br=${br#refs/heads/}
+
+  [ "z$br" != "z" -a "z$br" != zmaster ] && _branch="%U$br%u "
+
+  export PROMPT="$_left$_branch$_right"
+}
+
 # Completion
 autoload -U compinit
 compinit
