@@ -13,8 +13,8 @@ getopts('hfr:vne:', \%opt);
 usage() if $opt{h} || !@ARGV || ($opt{r} && $opt{r} !~ /^(90|180|270)$/);
 sub usage {
   die <<EOU;
-usage: $prog [options] input.(dv|mov|avi|m4v) output.(mp4|flv)
-       $prog [options] [-f] in1.(dv|mov|avi|m4v) [in2.(dv|mov|avi) [...]]
+usage: $prog [options] input.(dv|mov|avi|m4v|3gp) output.(mp4|flv)
+       $prog [options] [-f] in1.(dv|mov|avi|m4v|3gp) [in2.(dv|...) [...]]
        options are:
        -e: give an extension to pretend the input file is for purposes of
            settings
@@ -68,7 +68,7 @@ sub convert {
 
   my $dsize = '';
   my ($width, $height);
-  if ($fmt eq 'mov') {
+  if ($fmt =~ /^(mov|3gp)$/) {
     # all .movs are widescreen from dave's camera (for now)
     ($width, $height) = (512, 288);
   }
@@ -77,7 +77,7 @@ sub convert {
     ($width, $height) = (320, 240);
   }
   else {
-    warn "$prog: unknown extension on input file $in; must be dv, avi, m4v, or mov; skipping\n";
+    warn "$prog: unknown extension on input file $in; must be dv, avi, m4v, 3gp, or mov; skipping\n";
     return;
   }
 
