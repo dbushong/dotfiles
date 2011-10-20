@@ -2,7 +2,7 @@
 
 prog=`basename $0`
 if [ `uname` = Darwin ]; then
-  dir=`mktemp -d -p /tmp $prog.XXXXX` 
+  dir=`mktemp -d -t $prog`
   chrome="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 else
   dir=`mktemp -d --tmpdir $prog.XXXXX`
