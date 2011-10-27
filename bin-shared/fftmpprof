@@ -33,7 +33,13 @@ EOU
 }
 
 # Initialization
-my $ff      = (exists($opt{c}) ? $opt{c} : 'firefox') . ' -no-remote';
+my $ff      = ( exists($opt{c})
+              ? $opt{c}
+              : (`uname` =~ /Darwin/
+                ? '/Applications/Firefox.app/Contents/MacOS/firefox'
+                : 'firefox'
+                )
+              ) . ' -no-remote';
 my $prof    = exists($opt{p})
             ? $opt{p} : strftime('tmp-%y%m%d%H%M%S', localtime());
 my $no_rm   = $opt{R};
@@ -45,6 +51,11 @@ my $cp = `$ff -CreateProfile $prof 2>&1`;
 $cp =~ m{^Success: created profile '$prof' at '(([^']+)/([^/]+))/prefs.js'$}m
   || die "$prog: bad output from $ff -CreateProfile $prof: $cp\n";
 my ($ppath, $profiles_dir, $path) = ($1, $2, $3);
+# correct profile path splitting on MacOS
+if ($profiles_dir =~ m,/Profiles$,) {
+  $profiles_dir = $`;
+  $path = "Profiles/$path";
+}
 print "created profile $prof at $ppath\n" if $verbose;
 
 my $ini   = "$profiles_dir/profiles.ini";
