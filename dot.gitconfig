@@ -4,7 +4,8 @@
 	st = status
 	br = branch
 	ls = ls-files
-	master2maint = !git co maint && git merge --ff-only master && git push && git co master
+	master2stage = !git fetch && git co master && git merge --ff-only origin && git co stage && git merge --ff-only origin && git merge --ff-only master && git push && git co master
+        stage2maint = !git fetch && git co stage && git merge --ff-only origin && git co maint && git merge --ff-only origin && git merge --ff-only stage && git push && git co master
 	ppush = !git pull && git push
 [color]
 	ui = true
