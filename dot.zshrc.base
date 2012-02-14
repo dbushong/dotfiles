@@ -40,7 +40,11 @@ function precmd() {
   
   br=$(git symbolic-ref HEAD 2>/dev/null) && br=${br#refs/heads/}
 
-  [ "z$br" != "z" -a "z$br" != zmaster ] && _branch="%U$br%u "
+  if [ "z$br" = "z" ]; then
+    _branch="%UNOBRANCH%u "
+  elif [ "z$br" != zmaster ]; then
+    _branch="%U$br%u "
+  fi
 
   export PROMPT="$_left$_branch$_right"
 }
