@@ -4,7 +4,6 @@
 	st = status
 	br = branch
 	ls = ls-files
-	master2maint = !git co maint && git merge --ff-only master && git push && git co master
 	ppush = !git pull && git push
 [color]
 	ui = true
@@ -20,3 +19,5 @@
 	tool = meld
 [difftool]
 	prompt = false
+[merge]
+	conflictstyle = diff3

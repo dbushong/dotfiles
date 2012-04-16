@@ -3,6 +3,12 @@ let g:loaded_matchparen=1      " don't do matchparen nastiness
 " let g:xml_use_xhtml=1          " put /> on singleton tags in HTML
 let g:sql_type_default='mysql' " default to MySQL style SQL syntax
 " let g:php_sql_query=1          " assume strings in PHP are SQL
+" fix for CtrlP + ^H-as-backspace
+let g:ctrlp_prompt_mappings = {
+  \ 'PrtBS()':      ['<bs>', '<c-]>', '<c-h>'],
+  \ 'PrtCurLeft()': ['<left>', '<c-^>'],
+  \ }
+
 
 " extra libraries
 try
@@ -78,9 +84,9 @@ nnoremap <C-w><C-]> <C-w>g<C-]>
 command -nargs=? -complete=file E split <args>
 
 " zuul smart quotes
-imap “ "
-imap ” "
-imap ’ '
+" imap “ "
+" imap ” "
+" imap ’ '
 
 function! SearchWithSkip(pattern, flags, stopline, timeout, skip)
   "

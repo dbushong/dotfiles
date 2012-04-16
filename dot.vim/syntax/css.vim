@@ -79,8 +79,8 @@ syn match cssColor contained "\<white\>"
 syn match cssColor contained "#[0-9A-Fa-f]\{3\}\>"
 syn match cssColor contained "#[0-9A-Fa-f]\{6\}\>"
 "syn match cssColor contained "\<rgb\s*(\s*\d\+\(\.\d*\)\=%\=\s*,\s*\d\+\(\.\d*\)\=%\=\s*,\s*\d\+\(\.\d*\)\=%\=\s*)"
-syn region cssURL contained matchgroup=cssFunctionName start="\<url\s*(" end=")" oneline keepend
-syn region cssFunction contained matchgroup=cssFunctionName start="\<\(rgb\|clip\|attr\|counter\|rect\)\s*(" end=")" oneline keepend
+syn region cssURL contained matchgroup=cssFunctionName start="\<\(\(image\|asset\)-\)\?url\s*(" end=")" oneline keepend
+syn region cssFunction contained matchgroup=cssFunctionName start="\<\(rgba\?\|clip\|attr\|counter\|rect\|\(linear\|radial\)-gradient\)\s*(" end=")" oneline keepend
 
 syn match cssImportant contained "!\s*important\>"
 
@@ -117,7 +117,7 @@ syn keyword cssTextAttr contained capitalize uppercase lowercase center justify 
 
 syn match cssBoxProp contained "\<\(margin\|padding\|border\)\(-\(top\|right\|bottom\|left\)\)\=\>"
 syn match cssBoxProp contained "\<border-\(\(\(top\|right\|bottom\|left\)-\)\=\(width\|color\|style\)\)\=\>"
-syn match cssBoxProp contained "\<\(width\|z-index\)\>"
+syn match cssBoxProp contained "\<\(width\|z-index\|border-radius\|opacity\|filter\|overflow\|visibility\|font-smoothing\|box-shadow\)\>"
 syn match cssBoxProp contained "\<\(min\|max\)-\(width\|height\)\>"
 syn keyword cssBoxProp contained width height float clear overflow clip visibility
 syn keyword cssBoxAttr contained thin thick both
