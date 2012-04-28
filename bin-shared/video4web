@@ -83,6 +83,9 @@ sub convert {
 
   my $info = `ffmpeg -i \Q$in\E 2>&1`;
 
+  # special-case for dawn's phone
+  ($width, $height) = (320, 240) if $fmt eq '3gp' && $info =~ /640x480/;
+
   my $fps = ($info =~ /([\d.]+)\s+(?:fps|tb)/) && $1;
   my @fps;
   if ($fps) {
