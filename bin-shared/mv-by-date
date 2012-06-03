@@ -36,7 +36,7 @@ $opt{d} = $def_fmt unless exists $opt{d};
 my $dest = pop(@ARGV);
 
 # 'DateTimeOriginal' => '2008:09:04 12:47:56',
-my $item;
+my ($item, $fail);
 for (@ARGV) {
   s,/+$,,;
   unless (-e) {
@@ -56,6 +56,7 @@ for (@ARGV) {
     next;
   }
 }
+exit($fail || 0);
 
 sub mv_file {
   my ($single) = @_;
@@ -85,6 +86,7 @@ sub mv_file {
   print "$file -> $path\n" if $opt{v};
 
   if (-e $path && !$opt{f}) {
+    $fail = 1;
     print STDERR "$path already exists; skipping move\n";
     return;
   }
