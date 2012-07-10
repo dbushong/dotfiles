@@ -16,5 +16,4 @@ export GREP_COLORS='mt=1:fn=:ln=:bn=:se='
 
 umask 002
 
-path=(~/bin ~/bin/shared /usr/local/bin /usr/local/sbin /sbin /bin /usr/sbin \
-       /usr/bin /usr/games)
+PATH=$HOME/bin:$HOME/bin/shared:/usr/local/bin:/usr/local/sbin:/sbin:/bin:/usr/sbin:/usr/bin:/usr/games
