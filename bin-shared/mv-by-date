@@ -71,8 +71,8 @@ sub mv_file {
   }
   else {
     my $info = ImageInfo($file);
-    my ($y, $mo, $d, $h, $mi, $s) = split(/[:\s]+/,
-      $info->{DateTimeOriginal} || $info->{FileModifyDate});
+    my ($y, $mo, $d, $h, $mi, $s) = split(/[:\s]+/, $info->{DateTimeOriginal}
+      || $info->{ModifyDate} || $info->{FileModifyDate});
     $ts = timelocal($s, $mi, $h, $d, $mo - 1, $y - 1900);
   }
 
