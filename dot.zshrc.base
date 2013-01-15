@@ -41,7 +41,10 @@ function precmd() {
   br=$(git symbolic-ref HEAD 2>/dev/null) && br=${br#refs/heads/}
 
   if [ "z$br" = "z" ]; then
-    _branch="%UNOBRANCH%u "
+    if [ "$(git symbolic-ref HEAD 2>&1)" = \
+        'fatal: ref HEAD is not a symbolic ref' ]; then
+      _branch="%UNOBRANCH%u "
+    fi
   elif [ "z$br" != zmaster ]; then
     _branch="%U$br%u "
   fi
