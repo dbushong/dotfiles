@@ -14,6 +14,8 @@ use File::Find;
 $| = 1;
 
 my $def_fmt = '%Y/%m/%d';
+my $now     = time();
+my $cur_yr  = (localtime($now))[5] + 1900;
 
 my %opt;
 my $prog = basename $0;
@@ -73,7 +75,15 @@ sub mv_file {
     my $info = ImageInfo($file);
     my ($y, $mo, $d, $h, $mi, $s) = split(/[:\s]+/, $info->{DateTimeOriginal}
       || $info->{ModifyDate} || $info->{FileModifyDate});
-    $ts = timelocal($s, $mi, $h, $d, $mo - 1, $y - 1900);
+    if ($y > $cur_yr+1) {
+      warn "$prog: year $y > current year+1; assuming current year\n";
+      $y = $cur_yr;
+    }
+    $ts = eval { timelocal($s, $mi, $h, $d, $mo - 1, $y - 1900) };
+    unless ($ts) {
+      warn "$prog: couldn't determine datetime for $file; using current\n";
+      $ts = $now;
+    }
   }
 
   my $path = "$dest/" . strftime($opt{d}, localtime($ts));
