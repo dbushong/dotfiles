@@ -1,0 +1,320 @@
+#!/usr/local/bin/ruby
+
+require 'getoptlong'
+require 'tempfile'
+gem 'rackspace-clouddns'
+require 'clouddns'
+require 'multi_json'
+
+KeyFile = "#{ENV['HOME']}/.rackspacecloud.key"
+
+opts = {}
+GetoptLong.new(
+  [ '--help',   '-h', GetoptLong::NO_ARGUMENT       ],
+  [ '--list',   '-l', GetoptLong::OPTIONAL_ARGUMENT ],
+  [ '--edit',   '-e', GetoptLong::REQUIRED_ARGUMENT ],
+  [ '--create', '-c', GetoptLong::REQUIRED_ARGUMENT ],
+  [ '--key',    '-k', GetoptLong::REQUIRED_ARGUMENT ]
+).each {|k,v| opts[k[2,1].to_sym] = v }
+
+
+def fetch_domain(name)
+  name = name.downcase
+  domains = $dns.domains(name: name).select {|d| d.name.downcase == name }
+  raise("failed to find registered domain for name '#{name}'") if domains.empty?
+  domains[0]
+end
+
+def domain_as_str(domain_name, domain = nil)
+  domain = fetch_domain(domain_name) unless domain
+  data = domain.records.map do |rec|
+    fields = [
+      rec.name[0,rec.name.size-domain_name.size-1],
+      rec.ttl.to_s,
+      rec.type,
+      rec.priority.to_s,
+      rec.data,
+      rec.id
+    ]
+    fields[0] = '@' unless fields[0]
+    fields.map {|f| f =~ /\s/ ? %{"#{f}"} : f }
+  end
+  idxs   = [0,1,2,3,4]
+  widths = idxs.map { |i| data.map {|r| (r[i]||'').size }.max } \
+    unless data.empty?
+
+  # output string
+  "$ORIGIN #{domain.name}\n$TTL #{domain.ttl}\n" + data.map do |row| 
+    idxs.map do |i| 
+      (i > 3) ? row[4].to_s : "%-#{widths[i]}s" % row[i] 
+    end.join(' ') + " ;ID:#{row[5]}\n"
+  end.join
+end
+
+def usage
+  $stderr.print <<EOF
+usage: #$0 (-l [domain] | -e domain | -c domain) [-k username:api_key]
+       -l: list domains or records in domain
+       -e: edit records in domain
+       -c: create a new domain
+       -k: only needed the first time; then saved in ~/.rackspacecloud.key
+EOF
+  exit 1
+end
+
+def parse_records(lines, domain)
+  recs = []
+  name = domain.name
+  ttl  = domain.ttl
+  for line in lines
+    case line
+    when /^\$ORIGIN\s+(\S+)/
+      name = $1
+    when /^\$TTL\s+(\d+)/
+      ttl = $1.to_i
+    when /^\s*#|^\s*$/
+      next
+    else
+      # extract id for modified existing row
+      id = nil
+      if line =~ /(.+)\s+;ID:(\S+)$/
+        line = $1
+        id   = $2
+      end
+
+      # parse possibly-quoted space-separated line into columns
+      fields = []
+      buffer = ""
+      in_str = false
+      for field in line.split
+        if in_str
+          if field =~ /"$/ && field !~ /\\"$/
+            in_str = false
+            fields << buffer + ' ' + field[0,field.size-1]
+            buffer = ""
+          else
+            buffer += ' ' + field
+          end
+        elsif field =~ /^"/
+          in_str = true
+          buffer = field[1,field.size-1]
+        elsif field =~ /"/
+          raise ParseError, %{" found in a non-string: "#{line}"}
+        else
+          fields << field
+        end
+      end
+
+      # name ttl type aux data
+
+      # default ttl to domain ttl
+      fields[1,0] = [ttl] unless fields[1] =~ /^\d+$/
+      fields[1] = fields[1].to_i
+
+      # normalize field size
+      if fields.size == 4
+        fields[3,0] = [nil]
+      elsif fields.size != 5
+        raise ParseError, %{bad # of fields (#{fields.size}) in line: "#{line}"}
+      end
+
+      # more sanity checks
+      raise ParseError, %{invalid record type "#{fields[2]}"} \
+        unless fields[2] =~ /^(A|CNAME|MX|NS|SRV|TXT|AAAA|PTR)$/
+      raise ParseError,
+        %{priority field "#{fields[3]}" for type "#{fields[2]}"} \
+          if fields[3] && fields[2] !~ /^(SRV|MX)$/
+
+      # name substitution
+      fields[0] =
+        if fields[0] == '@'
+          name
+        else
+          "#{fields[0]}.#{name}"
+        end
+
+      # record creation
+      rec = {
+        name: fields[0],
+        ttl:  fields[1],
+        type: fields[2],
+        data: fields[4],
+      }
+      rec[:priority] = fields[3] if fields[3]
+      rec[:id]       = id        if id
+
+      recs << rec
+    end
+  end
+  [name, ttl, recs]
+end
+
+def ask_yn(prompt)
+  $stderr.print(prompt + " [Y/n] ")
+  yn = $stdin.gets
+  yn !~ /n/i
+end
+
+def ask_try_again(msg = nil)
+  $stderr.puts msg if msg
+  exit unless ask_yn 'try editing file again?'
+end
+
+def edit_loop(domain, tmp)
+  # edit it
+  system(ENV['VISUAL'] || ENV['EDITOR'] || '/usr/bin/editor', tmp.path)
+
+  # parse results
+  begin
+    new_name, new_ttl, new_recs = 
+      parse_records(IO.readlines(tmp.path), domain)
+  rescue ParseError => msg
+    ask_try_again "parse error: #{msg}"
+    return true
+  end
+
+  # calculate changes
+  dirty = false
+  if domain.name != new_name
+    puts "$ORIGIN: #{domain.name} -> #{new_name}" 
+    dirty = true
+  end
+  if domain.ttl != new_ttl
+    puts "$TTL: #{domain.ttl} -> #{new_ttl}"
+    dirty = true
+  end
+  to_edit = []
+  to_add  = []
+  old_recs = domain.records.dup
+  for rec in new_recs
+    old_rec = nil
+    if rec[:id]
+      old_rec = old_recs.find {|r| r.id == rec[:id] }
+      unless old_rec
+        ask_try_again "invalid id #{rec[:id]} not found"
+        return true
+      end
+    end
+      
+    if old_rec && rec[:name] == old_rec.name && rec[:type] == old_rec.type
+      changes = {}
+      for key in [:data, :priority, :ttl]
+        new_val = rec[key]
+        old_val = old_rec.send(key)
+        changes[key] = new_val unless new_val.to_s == old_val.to_s
+      end
+
+      unless changes.empty?
+        dirty = true
+        puts("CHANGE: #{old_rec.name}: " + {}.tap do |h|
+          changes.each {|k,v| h[k] = "#{v} -> #{old_rec.send(k)}" }
+        end.inspect) 
+        to_edit << [ old_rec, changes ]
+      end
+
+      old_recs.delete(old_rec)
+    else
+      dirty = true
+      rec.delete :id
+      to_add << rec
+      puts("ADD: " + rec.inspect)
+    end
+  end
+
+  unless old_recs.empty?
+    old_recs.each {|orec| puts("DELETE: " + orec.inspect) }
+    dirty = true
+  end
+
+  unless dirty
+    $stderr.puts "no changes"
+    exit
+  end
+
+  if ask_yn('Commit changes?')
+    # domain updates
+    domain.name = new_name
+    domain.ttl  = new_ttl
+
+    # record deletes
+    old_recs.each {|drec| $dns.delete_record(domain, drec) }
+
+    # record adds & changes
+    to_add.each {|arec| domain.add_record arec }
+
+    for rec, changes in to_edit
+      changes.each {|k,v| rec.send("#{k}=".to_sym, v) }
+      rec.save
+    end
+
+    # commit changes
+    domain.save
+
+    $stderr.puts "changes saved"
+  elsif ask_yn('Edit file again?')
+    return true
+  end
+
+  false
+end
+
+if opts[:h] || !(!opts[:l].nil? ^ !opts[:c].nil? ^ !opts[:e].nil?)
+  usage
+end
+
+if opts[:k]
+  File.open(KeyFile, 'w') {|f| f.write(opts[:k]) } 
+  File.chmod(0600, KeyFile)
+end
+
+unless File.exists? KeyFile
+  $stderr.puts "you must specify -k and your username:api_key the first time"
+  exit 1
+end
+
+username, api_key = *IO.read(KeyFile).chomp.split(/:/)
+$dns = CloudDns::Client.new(username: username, api_key: api_key)
+
+class ParseError < RuntimeError; end
+
+if opts[:l]
+  # spew current value to stdout
+  if opts[:l].empty?
+    for domain in $dns.domains
+      puts "[#{domain.id}] #{domain.ttl}\t#{domain.name}"
+    end
+  else
+    print domain_as_str(opts[:l])
+  end
+elsif opts[:e]
+  old_name = opts[:e]
+  # write out editable version
+  domain = fetch_domain(old_name)
+  tmp = Tempfile.new(File.basename($0))
+  tmp.print(domain_as_str(old_name, domain))
+  tmp.close
+  
+  loop { break unless edit_loop(domain, tmp) }
+elsif opts[:c]
+  name = opts[:c]
+  domain = $dns.create_domain name, email: "abuse@#{name}"
+  puts "created #{name} id #{domain.id}"
+end
+
+__END__
+
+$ORIGIN example.com.
+$TTL 3600
+gimli        3600  A        1.2.3.4
+mail         3600  A        1.2.3.4
+@            3600  A        1.2.3.4
+@            86400 MX    10 mail
+@            86400 MX    20 mail.other.net.
+@            86400 MX    30 mail.ya.net.
+@            86400 NS       ns1.slicehost.net.
+@            86400 NS       ns2.slicehost.net.
+@            86400 NS       ns3.slicehost.net.
+@            86400 TXT      "v=spf1 ip4:1.2.3.4 -all"
+irc          86400 CNAME    gimli
+www          86400 CNAME    gimli
+*.dev        86400 CNAME    gimli
