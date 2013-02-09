@@ -171,10 +171,8 @@ EOT
     template   => <<'EOT'
 #!/usr/bin/env coffee
 
-Troll = require('troll-opt').Troll
-troll = new Troll
-
-opts = troll.options (t) ->
+troll = new (require('troll-opt').Troll)
+opts  = troll.options (t) ->
   t.banner 'Does stuff'
   t.opt 'help', 'Display this help text', short: 'h'
 
