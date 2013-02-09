@@ -79,7 +79,7 @@ sub mv_file {
       warn "$prog: year $y > current year+1; assuming current year\n";
       $y = $cur_yr;
     }
-    $ts = eval { timelocal($s, $mi, $h, $d, $mo - 1, $y - 1900) };
+    $ts = eval { timelocal($s, $mi, $h, $d, $mo - 1, $y) };
     unless ($ts) {
       warn "$prog: couldn't determine datetime for $file; using current\n";
       $ts = $now;
