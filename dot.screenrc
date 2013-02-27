@@ -7,6 +7,7 @@ defutf8 on
 escape ^Oo
 vbell off
 bind h prev
+bind ^H prev
 bind C hardcopy
 hardstatus off
 bell_msg "Bell in window %n^G"
