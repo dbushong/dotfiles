@@ -1,3 +1,4 @@
+export TZ='PST8PDT'
 export EDITOR='vim'
 export VISUAL='vim'
 export PAGER='less'
