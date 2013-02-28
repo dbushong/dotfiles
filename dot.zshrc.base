@@ -2,7 +2,7 @@
 HISTFILE=~/.histfile
 HISTSIZE=1000
 SAVEHIST=1000
-PROMPT='%B%m%b %~ %B[%t]%b '
+PROMPT='%B%m%b %~ %B[%T]%b '
 WATCH=all
 WATCHFMT='%n %B%a%b %l from %M at %t.'
 
@@ -36,7 +36,7 @@ function precmd() {
   local br _left _branch _right
 
   _left='%B%m%b '
-  _right='%~ %B[%t]%b '
+  _right='%~ %B[%T]%b '
   
   br=$(git symbolic-ref HEAD 2>/dev/null) && br=${br#refs/heads/}
 
