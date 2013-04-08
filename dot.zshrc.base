@@ -31,8 +31,8 @@ fgl() { fgrep --color=always "$@" | less }
 egl() { egrep --color=always "$@" | less }
 alias last-paste='cat ~/.paste/*(On[1])'
 
-# git prompt stuffs
-function precmd() {
+# precmd func: git prompt stuffs
+function set_git_prompt() {
   local br _left _branch _right
 
   _left='%B%m%b '
@@ -51,6 +51,14 @@ function precmd() {
 
   export PROMPT="$_left$_branch$_right"
 }
+
+# precmd cmd: source ssh env inside screen
+function source_screen_env {
+  [ "$TERM" = screen -a -e ~/.ssh/screen-env ] && source ~/.ssh/screen-env
+}
+
+# precmd array
+precmd_functions=(set_git_prompt source_screen_env)
 
 # Completion
 autoload -U compinit

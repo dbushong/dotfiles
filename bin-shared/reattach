@@ -1,0 +1,5 @@
+#!/bin/sh
+
+env | egrep '^SSH_' | sed -e 's/=/="/' -e 's/$/"/' -e 's/^/export /' \
+  > $HOME/.ssh/screen-env
+exec screen -D -R
