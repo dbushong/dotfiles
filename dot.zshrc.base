@@ -30,7 +30,12 @@ alias sz='source ~/.zshenv;source ~/.zshrc'
 fgl() { fgrep --color=always "$@" | less }
 egl() { egrep --color=always "$@" | less }
 alias last-paste='cat ~/.paste/*(On[1])'
-alias git=hub
+
+# hub stuff
+#alias git=hub
+#if type compdef >/dev/null; then
+#  compdef hub=git
+#fi
 
 # precmd func: git prompt stuffs
 function set_git_prompt() {
