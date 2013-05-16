@@ -171,14 +171,11 @@ EOT
     template   => <<'EOT'
 #!/usr/bin/env coffee
 
-troll = new (require('troll-opt').Troll)
-opts  = troll.options (t) ->
-  t.banner 'Does stuff'
-  t.opt 'help', 'Display this help text', short: 'h'
+prog = require 'commander'
+prog.option('-s, --sample-option <s>', 'Some sample option', Number)
+    .parse(process.argv)
 
-if opts.help
-  troll.usage()
-  process.exit 1
+# remaining args are prog.args
 
 EOT
   }

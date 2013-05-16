@@ -1,0 +1,15 @@
+#!/bin/sh
+#
+# stderr-iff-err - run given cmd, caching its stderr, only outputting it
+#                  on a non-zero exit
+#
+
+prog=`basename $0`
+if [ $# -eq 0 -o "$1" = -h ]; then
+  echo "usage: $prog cmd [args]" >&2
+  exit 1
+fi
+
+tmp=`mktemp --tmpdir $prog.XXXXX`
+"$@" 2>$tmp || cat $tmp >&2
+rm $tmp
