@@ -1,0 +1,40 @@
+#!/bin/sh -e
+#
+# lastfile - returns the last (or nth last) file in a given directory
+# 
+# e.g.:
+# % curl -O http://example.com/something.html
+# % more `lastfile`
+#
+
+PROG=`basename $0`
+temp=`getopt -o hn: -n $PROG -- "$@"`
+if [ $? != 0 ] ; then echo "Terminating..." >&2 ; exit 1 ; fi
+eval set -- "$temp"
+
+usage () {
+  cat <<EOF >&2
+usage: $PROG [-n num] [directory]
+       -n: show nth-most-recent (default: 1)
+EOF
+  exit 1
+}
+
+NTH=1
+
+while true; do
+  case $1 in
+    -h) usage ;;
+    -n) NTH=$2 ; shift 2 ;;
+    --) shift ; break ;;
+     *) echo 'internal error' >&2 ; exit 1 ;;
+  esac
+done
+
+if [ $# -eq 1 ]; then
+  cd "$1"
+elif [ $# -gt 1 ]; then
+  usage
+fi
+
+ls -1t | head -"$NTH" | tail -1
