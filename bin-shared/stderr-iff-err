@@ -1,7 +1,7 @@
-#!/bin/sh
+#! /bin/sh
 #
 # stderr-iff-err - run given cmd, caching its stderr, only outputting it
-#                  on a non-zero exit
+#                  on a non-zero exit, and passing through its exit code
 #
 
 prog=`basename $0`
@@ -10,6 +10,13 @@ if [ $# -eq 0 -o "$1" = -h ]; then
   exit 1
 fi
 
-tmp=`mktemp --tmpdir $prog.XXXXX`
-"$@" 2>$tmp || cat $tmp >&2
+tmp=`mktemp -t $prog.XXXXX`
+"$@" 2>$tmp
+status=$?
+
+if [ $status -ne 0 ]; then
+  cat $tmp >&2
+fi
+
 rm $tmp
+exit $status
