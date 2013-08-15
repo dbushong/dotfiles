@@ -1,0 +1,53 @@
+#!/bin/sh -e
+#
+# viencsh - create or edit encrypted shell scripts
+#           NOTE: may leave unencrypted tmpfiles around on failure!
+#
+
+PROG=`basename $0`
+temp=`getopt -o h -n $PROG -- "$@"`
+if [ $? != 0 ] ; then echo "Terminating..." >&2 ; exit 1 ; fi
+eval set -- "$temp"
+
+usage () {
+  cat <<EOF >&2
+usage: $PROG file
+EOF
+  exit 1
+}
+
+while true; do
+  case $1 in
+    -h) usage ;;
+    --) shift ; break ;;
+     *) echo 'internal error' >&2 ; exit 1 ;;
+  esac
+done
+
+[ $# -eq 1 ] || usage
+
+FILE=$1
+TMP=`mktemp -t $PROG.XXXXX.sh`
+
+if [ -f $FILE ]; then
+  awk 'NR==1,/#START/{next}/^EOF$/,NR==0{next}{print}' $FILE \
+    | base64-decode | openssl enc -d -bf-cbc > $TMP
+else
+  touch $TMP
+fi
+
+HEADER=$(cat <<EOS
+#!/bin/sh
+
+base64-decode <<EOF | openssl enc -d -bf-cbc | sh #START
+EOS
+)
+
+if ${EDITOR:-editor} $TMP; then
+  if PAYLOAD=`openssl enc -e -bf-cbc -in $TMP | base64`; then
+    (echo "$HEADER" ; echo "${PAYLOAD}EOF") > $FILE
+    chmod a+x $FILE
+  fi
+fi
+
+rm $TMP
