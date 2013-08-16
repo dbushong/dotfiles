@@ -28,6 +28,11 @@ done
 
 FILE=$1
 TMP=`mktemp -t $PROG.XXXXX.sh`
+cleanup () {
+  rm -f $TMP
+  exit ${1:-1}
+}
+trap cleanup INT
 
 if [ -f $FILE ]; then
   awk 'NR==1,/#START/{next}/^EOF$/,NR==0{next}{print}' $FILE \
@@ -44,10 +49,12 @@ EOS
 )
 
 if ${EDITOR:-editor} $TMP; then
-  if PAYLOAD=`openssl enc -e -bf-cbc -in $TMP | base64`; then
-    (echo "$HEADER" ; echo "${PAYLOAD}EOF") > $FILE
+  PAYLOAD=`openssl enc -e -bf-cbc -in $TMP | base64`
+  if ! [ -z "$PAYLOAD" ]; then
+    (echo "$HEADER" ; echo "$PAYLOAD" ; echo EOF) > $FILE
     chmod a+x $FILE
+    cleanup 0
   fi
 fi
 
-rm $TMP
+cleanup 1
