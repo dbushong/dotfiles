@@ -19,7 +19,7 @@ my $cur_yr  = (localtime($now))[5] + 1900;
 
 my %opt;
 my $prog = basename $0;
-getopts('hclnvfk:E', \%opt);
+getopts('hclnvfk:EW', \%opt);
 die <<EOF if $opt{h} || @ARGV < 2 || ($opt{l} && $opt{c});
 usage: $prog [-E] [-n | -v] [-f] [-l | -c] [-d strftime-fmt] \\
          file [dir2 [...]] dest-dir
@@ -29,6 +29,7 @@ usage: $prog [-E] [-n | -v] [-f] [-l | -c] [-d strftime-fmt] \\
            default: $def_fmt
        -v: verbose
        -f: force move; overwrite without asking; default is to skip and warn
+       -W: no warnings about existing
        -l: move, then link
        -c: copy intead of moving
 EOF
@@ -96,8 +97,10 @@ sub mv_file {
   print "$file -> $path\n" if $opt{v};
 
   if (-e $path && !$opt{f}) {
-    $fail = 1;
-    print STDERR "$path already exists; skipping move\n";
+    unless ($opt{W}) {
+      $fail = 1;
+      print STDERR "$path already exists; skipping move\n";
+    }
     return;
   }
 
