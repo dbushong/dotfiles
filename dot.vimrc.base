@@ -34,6 +34,9 @@ autocmd BufNewFile,BufRead * if &ft == 'ruby'  | compiler ruby  | endif
 autocmd BufNewFile,BufRead * if &ft == 'php'   | compiler php   | endif
 autocmd BufNewFile,BufRead * if &ft == 'javascript' | compiler javascript | endif
 
+" preserve final newlines
+let g:PreserveNoEOL = 1
+
 " general settings
 set modeline
 set noshowmode
