@@ -15,11 +15,9 @@
 	autosetuprebase = always
 [push]
 	default = tracking
-[diff]
-	tool = meld
-[difftool]
+[mergetool]
 	prompt = false
 [merge]
-	conflictstyle = diff3
+        tool = vimdiff
 [remote "origin"]
 	fetch = +refs/pull/*/head:refs/remotes/origin/pr/*
