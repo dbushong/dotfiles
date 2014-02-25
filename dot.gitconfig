@@ -20,5 +20,3 @@
 	prompt = false
 [merge]
         tool = vimdiff
-[remote "origin"]
-	fetch = +refs/pull/*/head:refs/remotes/origin/pr/*
