@@ -19,4 +19,4 @@
 [mergetool]
 	prompt = false
 [merge]
-        tool = vimdiff
+        tool = opendiff
