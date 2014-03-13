@@ -44,15 +44,14 @@ function set_git_prompt() {
   _left='%B%m%b '
   _right='%~ %B[%T]%b '
   
-  br=$(git symbolic-ref HEAD 2>/dev/null) && br=${br#refs/heads/}
+  br=$(git symbolic-ref HEAD 2>&1)
 
-  if [ "z$br" = "z" ]; then
-    if [ "$(git symbolic-ref HEAD 2>&1)" = \
-        'fatal: ref HEAD is not a symbolic ref' ]; then
-      _branch="%UNOBRANCH%u "
-    fi
-  elif [ "z$br" != zmaster ]; then
-    _branch="%U$br%u "
+  if [ "$br" = 'fatal: ref HEAD is not a symbolic ref' ]; then
+    _branch="%UNOBRANCH%u "
+  else
+    br=${br#refs/heads/}
+    br=${br:#fatal*}
+    [ -n "$br" -a "$br" != master ] && _branch="%U$br%u "
   fi
 
   export PROMPT="$_left$_branch$_right"
