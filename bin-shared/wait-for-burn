@@ -1,0 +1,68 @@
+#!/bin/sh -e
+#
+# wait-for-burn - finds out what single process is currently using the most
+#                 CPU and waits for it to stop doing so; handy for alerting
+#                 you when some startup burn is done
+#
+
+PROG=`basename $0`
+temp=`getopt hp:n:s:vb "$@"`
+if [ $? != 0 ] ; then echo "Terminating..." >&2 ; exit 1 ; fi
+eval set -- "$temp"
+
+MAX_PERCENT=75
+NUM_TRIES=3
+SLEEP_SECS=3
+VERBOSE=false
+BEEP=false
+
+usage () {
+  cat <<EOF >&2
+usage: $PROG [-p max-perc] [-n num-tries] [-s sleep-secs ] [-v] [-b]
+       -p: specify percentage under which burn is done (default: $MAX_PERCENT)
+       -n: number of times to check to find burner (default: $NUM_TRIES)
+       -s: number of seconds to sleep between tries (default: $SLEEP_SECS)
+       -v: verbose
+       -b: beep when burn is done
+EOF
+  exit 1
+}
+
+while true; do
+  case $1 in
+    -h) usage ;;
+    -p) MAX_PERCENT="$2" ; shift 2 ;;
+    -n) NUM_TRIES="$2"   ; shift 2 ;;
+    -s) SLEEP_SECS="$2"  ; shift 2 ;;
+    -v) VERBOSE=true ; shift ;;
+    -b) BEEP=true; shift ;;
+    --) shift ; break ;;
+     *) echo 'internal error' >&2 ; exit 1 ;;
+  esac
+done
+
+[ $# -gt 0 ] && usage
+
+pid=''
+for try in `seq 1 $NUM_TRIES`; do
+  top=`ps -eo 'pid=,cmd=' --sort '-%cpu'  | head -1`
+  $VERBOSE && echo "top: $top"
+  new_pid=`echo "$top" | awk '{print $1}'`
+  if [ -n "$pid" ] && [ $new_pid -ne $pid ]; then
+    echo "couldn't find top CPU command" >&2
+    exit 1
+  fi
+  pid=$new_pid
+  [ $try -lt $NUM_TRIES ] && sleep $SLEEP_SECS
+done
+
+while true; do
+  pct=`ps -p $pid -o '%cpu=' | sed -e 's/^  *//' -e 's/\..*//'`
+  $VERBOSE && echo -n "$pct% "
+  if [ $pct -lt $MAX_PERCENT ]; then
+    $VERBOSE && echo
+    $BEEP && echo -n ""
+    exit 0
+  fi
+  sleep 2
+done
