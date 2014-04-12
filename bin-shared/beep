@@ -1,0 +1,17 @@
+#!/bin/sh -e
+#
+# beep - beeps <argument> seconds from now
+#
+
+if [ $# -gt 1 -o "$1" = -h ]; then
+  echo "usage: `basename [$0]` secs" >&2
+  exit 1
+fi
+
+SECS=0
+if [ $# -eq 1 ]; then
+  SECS="$1"
+fi
+
+sleep "$SECS"
+echo -n ''

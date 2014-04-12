@@ -1,0 +1,21 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Getopt::Std;
+use File::Basename;
+use utf8;
+
+my $prog = basename($0);
+my %opt;
+getopts('ho:', \%opt);
+usage() if $opt{h};
+sub usage {
+  die <<EOU;
+usage: $prog -o output.mp4 file1.mp4 file2.mp4 [...]
+EOU
+}
+
+usage() unless $opt{o} && @ARGV > 1;
+
+exec('avconv', '-i', 'concat:' . join('|', @ARGV), '-codec', 'copy', $opt{o});
