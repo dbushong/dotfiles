@@ -1,0 +1,113 @@
+#!/usr/bin/perl
+#
+# cat-tsvs: concatenate headered, optionally compressed tsv files
+#
+
+use strict;
+use warnings;
+use Getopt::Std;
+use File::Basename;
+use List::MoreUtils qw(uniq any);
+use utf8;
+
+my $prog = basename($0);
+my %opt;
+getopts('hnvdH:', \%opt);
+usage() if $opt{h} || !@ARGV;
+sub usage {
+  die <<EOU;
+usage: $prog [-n] [-v] [-d] file-with-header.tsv[.lzo] [...]
+       $prog -H header [-n] [-v] [-d] file-without-header.tsv[.lzo] [...]
+       -H: assume headerless files: add given tab-separated header
+       -d: add a "date" column to each file as it comes through, corresponding
+           to the first YYYY/MM/DD pattern detected in its path
+       -n: add an order column with total line number
+       -v: verbose: show the cmds being run
+EOU
+}
+
+my $number  = $opt{n};
+my $verbose = $opt{v};
+my $dated   = $opt{d};
+my $header  = $opt{H};
+
+# quick exit for simple single-file case
+exec cat(@ARGV) if @ARGV == 1 && !($number || $verbose || $dated || $header);
+
+my $reorder = '';
+my $tail    = " | tail -n +2";
+unless ($header) {
+  # read the headers from all of the files
+  my @headers;
+  for my $file (@ARGV) {
+    my $cat = cat($file);
+    my $hdr = `$cat | head -1`;
+    chomp($hdr);
+    push(@headers, $hdr);
+  }
+
+  if (uniq(@headers) > 1) {
+    # differing headers, we have work to do
+    $_ = [ split(/\t/, $_) ] for @headers;
+    my @fields = @{shift(@headers)};
+    for my $hdr (@headers) {
+      my @nf;
+      for my $fld (@$hdr) {
+        push(@nf, $fld) if any { $_ eq $fld } @fields;
+      }
+      @fields = @nf;
+    }
+    die "$prog: no common fields found in file headers\n" unless @fields;
+
+    $reorder = "| reorder -d '\t' -F " . quotemeta(join(',', @fields));
+    $header  = join("\t", @fields);
+  }
+  else {
+    $header  = $headers[0];
+  }
+}
+
+# prepend the order header if we'll be numbering
+$header = "order\t$header" if $number;
+
+# prepend the date header if we're dating
+$header = "date\t$header" if $dated;
+
+# build our sh command string of doooooooom
+my $cmd = join(' ; ', map {
+  my $bit = cat($_) . $reorder . $tail;
+  if ($dated) {
+    m{(?:^|/)(\d{4})/(\d\d)/(\d\d)(?!\d)}
+      || die "$prog: no YYYY/MM/DD found in $_ for -d\n";
+    $bit .= " | add_field -v $1-$2-$3";
+  }
+  $bit;
+} @ARGV);
+$cmd = "{ $cmd ; } | nl -w1" if $number;
+
+# run it!
+print "$header\n";
+print STDERR "$cmd\n" if $verbose;
+exec($cmd);
+
+sub cat {
+  my ($file) = @_;
+  my $cmd;
+  if ($file =~ /\.lzo$/) {
+    $cmd = 'lzop -dc';
+  }
+  elsif ($file =~ /\.gz$/) {
+    $cmd = 'gzip -dc';
+  }
+  elsif ($file =~ /\.bz2$/) {
+    $cmd = 'bzip2 -dc';
+  }
+  elsif ($file eq '-') {
+    die "$prog: stdin concatenation currently unsupported\n";
+  }
+  else {
+    $cmd = 'cat';
+  }
+  $cmd .= " \Q$file" unless $file eq '-';
+  $cmd;
+}
