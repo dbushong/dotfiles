@@ -1,6 +1,9 @@
 #!/usr/bin/perl
 #
 # cat-tsvs: concatenate headered, optionally compressed tsv files
+#           requires reorder(1) and add_field(1) from crush-tools for
+#           non-trivial operation, lzop(1) for lzo support,
+#           bzip2(1) for bzip2 support
 #
 
 use strict;
