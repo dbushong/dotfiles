@@ -7,6 +7,7 @@
 	graph = log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit --date=relative
 	ppush = !git pull && git push
 	close-pr = !prbranch=`git rev-parse --abbrev-ref HEAD` && git checkout master && git pull && git branch -d $prbranch && git remote prune origin
+        icdiff = !git difftool --no-prompt --extcmd icdiff "$@"
 [color]
 	ui = true
 [color "grep"]
