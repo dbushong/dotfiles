@@ -10,16 +10,20 @@ $| = 1;
 
 my $prog = basename($0);
 my %opt;
-getopts('hs:DRt:H1', \%opt);
-usage() if $opt{h} || @ARGV != 1;
+getopts('hs:DRt:H1c:', \%opt);
+usage() if $opt{h} || !($opt{c} xor (@ARGV == 1));
 sub usage {
   die <<EOU;
-usage: $prog [-1] [-s secs] [-D] [-R] [-t target-size] [-H] file-or-directory
+usage: $prog [-1] [-s secs] [-D] [-R] [-t target-size] [-H] \
+             (-c 'command string' | file-or-directory)
        -1: just run once; default: continuous updates
        -s: number of seconds to wait for data gathering; default: 2
-       -D: for a directory, don't do an initial du before the 2 measurements
+       -D: for a directory or command, don't do an initial du/exec before the
+           two measurements
        -R: don't repaint the line; just reprint every interval
        -H: use bytes and secs for all output values (default: human readable)
+       -c: specify a command to run whose output should begin with optional
+           whitespace and then a number
        -t: specify a target size in bytes and report estimated completion time;
            implies -R; can also specify a file path whose size will be used
 EOU
@@ -33,6 +37,7 @@ if ($opt{t} && $opt{t} !~ /^\d+$/) {
 }
 my @units = qw(bytes KiB MiB GiB TiB);
 splice(@units, 1) if $opt{H};
+@units = ('') if $opt{c};
 
 my %tunits = (
   1        => 's',
@@ -42,17 +47,19 @@ my %tunits = (
 );
 %tunits = (1 => 's') if $opt{H};
 
+my $cmd    = $opt{c};
 my $target = $ARGV[0];
 
-my $dir;
-if (-d $target) {
-  $dir = "du -sb \Q$target";
-  `$dir` unless $opt{D};
-}
-elsif (!-f $target) {
-  die "$prog: no such file or directory '$target'\n";
+unless ($cmd) {
+  if (-d $target) {
+    $cmd = "du -sb \Q$target";
+  }
+  elsif (!-f $target) {
+    die "$prog: no such file or directory '$target'\n";
+  }
 }
 
+`$cmd` if $cmd && !$opt{D};
 
 my $first = get_size();
 my $start = time();
@@ -120,8 +127,8 @@ sub time_units {
 }
 
 sub get_size {
-  return -s $target unless $dir;
-  my $s = `$dir`;
-  $s =~ s/\s.*//;
-  $s;
+  return -s $target unless $cmd;
+  my $s = `$cmd`;
+  $s =~ /^\s*(\d+)/;
+  $1;
 }
