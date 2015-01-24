@@ -141,12 +141,9 @@ EOT
     extension  => 'sh',
     executable => 1,
     template   => <<'EOT'
-#!/bin/sh -e
+#!/bin/bash -e
 
-PROG=`basename $0`
-temp=`getopt -o h -n $PROG -- "$@"`
-if [ $? != 0 ] ; then echo "Terminating..." >&2 ; exit 1 ; fi
-eval set -- "$temp"
+PROG="${0##*/}"
 
 usage () {
   cat <<EOF >&2
@@ -155,13 +152,14 @@ EOF
   exit 1
 }
 
-while true; do
-  case $1 in
-    -h) usage ;;
-    --) shift ; break ;;
-     *) echo 'internal error' >&2 ; exit 1 ;;
+while getopts "h" opt; do
+  case "$opt" in
+    h) usage ;;
+#   f) FOO="$OPTARG" ;;
+    *) echo 'internal error' >&2 ; exit 1 ;;
   esac
 done
+shift $((OPTIND-1))
 
 EOT
   },
