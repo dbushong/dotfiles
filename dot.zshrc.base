@@ -57,13 +57,19 @@ function set_git_prompt() {
   export PROMPT="$_left$_branch$_right"
 }
 
+source ~/.git-prompt.sh
+function set_git_prompt2() {
+  GIT_PS1_SHOWCOLORHINTS=true
+  __git_ps1 "%B%m%b" " %~ %B[%T]%b " " %s"
+}
+
 # precmd cmd: source ssh env inside screen
 function source_screen_env {
   [ "$TERM" = screen -a -e ~/.ssh/screen-env ] && source ~/.ssh/screen-env
 }
 
 # precmd array
-precmd_functions=(set_git_prompt source_screen_env)
+precmd_functions=(set_git_prompt2 source_screen_env)
 
 # Completion
 autoload -U compinit
