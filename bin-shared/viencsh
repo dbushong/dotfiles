@@ -42,7 +42,8 @@ else
 fi
 
 HEADER=$(cat <<EOS
-#!/bin/sh
+#!/bin/bash -e
+set -o pipefail
 
 base64-decode <<EOF | openssl enc -d -bf-cbc | sh #START
 EOS

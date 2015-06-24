@@ -36,7 +36,7 @@ usage: $prog [-E] [-n | -v] [-f] [-l | -L | -c] [-d strftime-fmt] \\
 EOF
 $opt{v} = 1 if $opt{n};
 $opt{d} = $def_fmt unless exists $opt{d};
-if ($opt{l}//0 + $opt{L}//0 + $opt{c}//0 > 1) {
+if (($opt{l}//0) + ($opt{L}//0) + ($opt{c}//0) > 1) {
   die "$prog: specify at most one of -l, -L, or -c\n";
 }
 
@@ -106,11 +106,12 @@ sub mv_file {
     return;
   }
 
-  print "$file -> $path\n" if $opt{v};
+  my $dpath = dirname($path);
+  print "$file -> $dpath\n" if $opt{v};
 
   return if $opt{n};
 
-  mkpath(dirname($path));
+  mkpath($dpath);
   if ($opt{c}) {
     copy($file, $path) || warn $!;
   }
