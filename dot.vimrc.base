@@ -58,6 +58,7 @@ set splitbelow
 set autoindent
 set writebackup
 set nobackup
+set backupcopy=yes
 set wrapscan
 set tildeop
 set showmatch
