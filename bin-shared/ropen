@@ -1,0 +1,38 @@
+#!/bin/bash -e
+#
+# ropen - run "open" on a remote file (by scp'ing it)
+#
+# TODO: * support xdg-open
+#       * better/safer tmpfiles
+#       * open multiple paths in one invocation
+
+PROG="${0##*/}"
+
+usage () {
+  cat <<EOF >&2
+usage: $PROG [options] host:path.ext [...]
+EOF
+  exit 1
+}
+
+while getopts "h" opt; do
+  case "$opt" in
+    h) usage ;;
+    *) echo 'internal error' >&2 ; exit 1 ;;
+  esac
+done
+shift $((OPTIND-1))
+
+for file in "$@"; do
+  host=`echo "$file" | sed 's/:.*//'`
+  base=`basename $(echo "$file" | sed 's/[^:]*://')`
+  pre=`echo "$base" | sed 's/\.[^.]*$//'`
+  ext=`echo "$base" | sed 's/.*\.//'`
+  [ -z "$ext" ] || ext=".$ext"
+  tmp="${TMPDIR:-/tmp}/$pre.$host.$PROG.$$$ext"
+  if scp "$file" "$tmp"; then
+    (open -W "$tmp" ; rm -f "$tmp") &
+  else
+    echo "failed to grab $file" >&2
+  fi
+done
