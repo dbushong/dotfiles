@@ -29,7 +29,7 @@ for my $pkg (@ARGV) {
   my $file = basename($pkg);
   my $rm   = ($file !~ /\.part$/);
   my $base = $file;
-  $base=~ s/\.(zip|xpi|crx|jar|7z|tar(\.(gz|bz2))?|t[bg]z|rar|cbr)(\.part)?$//i;
+  $base=~ s/\.(zip|xpi|crx|jar|7z|tar(\.(gz|bz2|xz))?|t[bg]z|rar|cbr)(\.part)?$//i;
   if ($file eq $base) { # no extension(s) removed
     my $infer = `file \Q$pkg\E 2>&1`;
     # TODO: add more
@@ -70,6 +70,9 @@ for my $pkg (@ARGV) {
   }
   elsif ($file =~ /\.(tbz|tar\.bz2)(\.part)?$/i) {
     $fail = system('tar', 'jxf', $pkg);
+  }
+  elsif ($file =~ /\.(txz|tar\.xz)(\.part)?$/i) {
+    $fail = system('tar', 'Jxf', $pkg);
   }
   elsif ($file =~ /\.tar$/i) {
     $fail = system('tar', 'xf', $pkg);
