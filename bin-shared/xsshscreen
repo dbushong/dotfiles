@@ -4,4 +4,4 @@ host=`basename $0`
 if [ $host = "xsshscreen" ]; then
   host=$1
 fi
-(exec ${XSSHTERM:-gnome-terminal -t} "ssh $host" --geometry 80x45 -e "ssh -t $host ./bin/shared/reattach" &)
+(exec ${XSSHTERM:-gnome-terminal} --geometry 80x45 -e "ssh -t $host ./bin/shared/reattach" &)
