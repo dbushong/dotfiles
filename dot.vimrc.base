@@ -64,6 +64,7 @@ set showmatch
 set exrc
 set tags=tags;/
 set notitle
+set backupcopy=yes
 
 " pesky laptop F1
 map <F1> <Esc>
