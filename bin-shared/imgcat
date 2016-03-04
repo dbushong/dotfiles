@@ -37,6 +37,7 @@ done
 shift $((OPTIND-1))
 
 cat_one () {
+  [[ $TERM == screen* ]] && printf '\033Ptmux;\033'
   printf '\033]1337;File=inline=%d;preserveAspectRatio=%d' $INLINE $PAR
   [ -z "$WIDTH"  ] || printf ';width=%s'  "$WIDTH"
   [ -z "$HEIGHT" ] || printf ';height=%s' "$HEIGHT"
@@ -56,6 +57,7 @@ cat_one () {
   printf ':'
   base64 "$@"
   printf '\a'
+  [[ $TERM == screen* ]] && printf '\033\'
 }
 
 if [ $# -eq 0 ]; then
