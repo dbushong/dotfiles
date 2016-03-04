@@ -1,0 +1,67 @@
+#!/bin/bash -e
+#
+# imgcat - improved version of imgcat script for iTerm2 w/ inline image support
+#
+
+PROG="${0##*/}"
+
+usage () {
+  cat <<EOF >&2
+usage: $PROG [-w width] [-t height] [-P] [file [...]]
+       $PROG -I [-n name] [-s size] [file [...]]
+       -w: specify max width for inline image (N (cols), Npx, or N%)
+       -t: specify max height for inline image (N (rows), Npx, or N%)
+       -P: don't preserve aspect ratio: force to -w/-t values
+       -I: disable inline img mode; just download file
+       -n: name the file once downloaded (defaults to basename of file arg)
+       -s: specify bytes for stdin stream, if known
+EOF
+  exit 1
+}
+
+PAR=1
+INLINE=1
+
+while getopts "hw:t:n:s:PI" opt; do
+  case "$opt" in
+    h) usage ;;
+    w) WIDTH=$OPTARG ;;
+    t) HEIGHT=$OPTARG ;;
+    n) NAME=`echo -n "$OPTARG" | base64` ;;
+    s) SIZE=$OPTARG ;;
+    P) PAR=0 ;;
+    I) INLINE=0 ;;
+    *) echo 'internal error' >&2 ; exit 1 ;;
+  esac
+done
+shift $((OPTIND-1))
+
+cat_one () {
+  printf '\033]1337;File=inline=%d;preserveAspectRatio=%d' $INLINE $PAR
+  [ -z "$WIDTH"  ] || printf ';width=%s'  "$WIDTH"
+  [ -z "$HEIGHT" ] || printf ';height=%s' "$HEIGHT"
+  [ -z "$NAME"   ] || printf ';name=%s'   "$NAME"
+  [ -z "$SIZE"   ] || printf ';size=%d'   "$SIZE"
+
+  # if not in inline mode, supply default name and/or size arguments
+  if [ $INLINE -eq 0 ]; then
+    if [ -z "$NAME" ]; then
+      printf ';name=%s' `basename "${1:-stdin.txt}" | tr -d '\n' | base64`
+    fi
+    if [ -z "$SIZE" -a $# -gt 0 ]; then
+      stat -nf ';size=%z' "$1"
+    fi
+  fi
+
+  printf ':'
+  base64 "$@"
+  printf '\a'
+}
+
+if [ $# -eq 0 ]; then
+  cat_one
+else
+  for file in "$@"; do
+    cat_one "$file"
+  done
+fi
