@@ -23,7 +23,7 @@ alias more=less
 alias mroe=less
 alias pt=perltidy
 alias vi=vim
-alias ls='ls -F'
+alias ls='ls -Fh'
 a() { awk "{ print \$$1 }" }
 alias d='dirs -v | head'
 alias sz='source ~/.zshenv;source ~/.zshrc'
