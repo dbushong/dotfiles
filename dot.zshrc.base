@@ -31,6 +31,7 @@ fgl() { fgrep --color=always "$@" | less }
 egl() { egrep --color=always "$@" | less }
 alias last-paste='cat ~/.paste/*(On[1])'
 alias serve='python -m SimpleHTTPServer'
+alias grep='grep --color=auto'
 
 # hub stuff
 #alias git=hub
