@@ -52,9 +52,9 @@ for (@fields) {
 }
 
 my $apache_re = qr{^
-  (\d+\.\d+\.\d+\.\d+) [ ]  # ip
-  (\S+)                [ ]  # ident
-  (\S+)                [ ]  # user
+  (\d+\.\d+\.\d+\.\d+|::1) [ ]  # ip
+  (\S+)                    [ ]  # ident
+  (\S+)                    [ ]  # user
   \[
     (\d\d) / ([JFMASOND][aepuco][nbrylgptvc]) / (\d{4}) # day mon year
     : (\d\d) : (\d\d) : (\d\d)                          # hour min sec
