@@ -16,6 +16,6 @@ usage: $prog -o output.mp4 file1.mp4 file2.mp4 [...]
 EOU
 }
 
-usage() unless $opt{o} && @ARGV > 1;
+usage() unless $opt{o} && @ARGV;
 
 exec('avconv', '-i', 'concat:' . join('|', @ARGV), '-codec', 'copy', $opt{o});
