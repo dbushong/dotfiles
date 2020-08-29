@@ -1,0 +1,35 @@
+#!/bin/bash -e
+#
+# gif2webm - batch converts GIFs to WEBMs
+#
+# TODO: center-crop them all for GIFs with varying sizes
+#
+
+PROG="${0##*/}"
+
+usage () {
+  cat <<EOF >&2
+usage: $PROG [options] file.gif [file2.gif [...]]
+EOF
+  exit 1
+}
+
+while getopts "h" opt; do
+  case "$opt" in
+    h) usage ;;
+#   f) FOO="$OPTARG" ;;
+    *) echo 'internal error' >&2 ; exit 1 ;;
+  esac
+done
+shift $((OPTIND-1))
+
+[ $# -gt 0 ] || usage
+
+for file in $*; do
+  pattern="$file-$PROG-%05d.png"
+  out=`echo "$file" | sed 's/\.gif/.webm/i'`
+  echo "$file -> $out"
+  convert "$file" "$pattern"
+  avconv -i "$pattern" -b 768k "$out"
+  rm "$file-$PROG-"*.png
+done

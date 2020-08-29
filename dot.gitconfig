@@ -9,6 +9,7 @@
 	close-pr = !prbranch=`git rev-parse --abbrev-ref HEAD` && git checkout master && git pull && git branch -d $prbranch && git remote prune origin
         clean-prs = !git pull && git remote prune origin && git branch --merged | fgrep -v '*' | grep -v master | grep -v develop | xargs -n 1 git branch -d
         icdiff = !git difftool --no-prompt --extcmd icdiff "$@"
+        amend = commit -a --amend --no-edit
 [color]
 	ui = true
 [color "grep"]
@@ -24,3 +25,5 @@
 [merge]
 	conflictstyle = diff3
 	tool = opendiff
+[rebase]
+        autoSquash = true

@@ -45,7 +45,7 @@ HEADER=$(cat <<EOS
 #!/bin/bash -e
 set -o pipefail
 
-base64-decode <<EOF | openssl enc -d -bf-cbc | sh #START
+base64-decode <<EOF | openssl enc -d -bf-cbc | bash -e #START
 EOS
 )
 
