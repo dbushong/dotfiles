@@ -9,7 +9,7 @@ for dot in dot.*; do
   fi
 done
 
-lesskey
+lesskey >/dev/null 2>&1 || true
 
 for file in cshrc zshrc zshenv vimrc; do
   if [ ! -f ../.$file ]; then

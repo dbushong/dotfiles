@@ -177,17 +177,29 @@ prog.option('-s, --sample-option <s>', 'Some sample option', Number)
 # remaining args are prog.args
 
 EOT
-  }
+  },
+  'Makefile' => {
+    template => <<'EOT'
+# turn off all the builtin C-specific crap
+.SUFFIXES:
+MAKEFLAGS += --no-builtin-rules
+
+.PHONY: default
+default:
+	@echo done
+EOT
+  },
 );
 
 my $prog = basename($0);
 my %opt;
-getopts('hf', \%opt);
+getopts('hEf', \%opt);
 usage() if $opt{h} || @ARGV > 2;
 sub usage {
   die <<EOU;
-usage: $prog [-f] [@{[ join(' | ', sort keys %format) ]}] filename|-
+usage: $prog [-E] [-f] [@{[ join(' | ', sort keys %format) ]}] filename|-
        -f: force (file file already exists)
+       -E: don't start editor on resulting file
 EOU
 }
 
@@ -227,6 +239,11 @@ print $fh $fmt->{template};
 close($fh);
 
 chmod(0775, $file) if $fmt->{executable};
+
+if ($opt{E}) {
+  print "created $file\n";
+  exit;
+}
 
 my $editor = $ENV{VISUAL} || $ENV{EDITOR} || 'editor';
 my @flags;
