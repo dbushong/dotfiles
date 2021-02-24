@@ -10,6 +10,9 @@ use File::Basename;
 use File::Path;
 use File::Copy;
 use File::Find;
+use utf8;
+use open IO => ':utf8';
+use open ':std';
 
 $| = 1;
 
@@ -107,7 +110,7 @@ sub mv_file {
   }
 
   my $dpath = dirname($path);
-  print "$file -> $dpath\n" if $opt{v};
+  print "$file → $dpath\n" if $opt{v};
 
   return if $opt{n};
 

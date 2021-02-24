@@ -1,0 +1,19 @@
+#!/bin/sh -e
+#
+# moves a single commit from master onto a git-wf feature branch
+#
+
+if [ $# -ne 1 ]; then
+  echo "usage: `basename $0` feature-name"
+  exit 1
+fi
+
+BRANCH=oops-`date +%s`
+
+git checkout -b $BRANCH
+git checkout master
+git reset --hard HEAD^
+git wf start $1
+git reset --hard $BRANCH
+git branch -d $BRANCH
+git push -f

@@ -66,6 +66,7 @@ set exrc
 set tags=tags;/
 set notitle
 set backupcopy=yes
+set cm=blowfish
 
 " pesky laptop F1
 map <F1> <Esc>

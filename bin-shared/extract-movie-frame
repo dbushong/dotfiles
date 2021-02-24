@@ -42,5 +42,5 @@ else {
 }
 
 sub extract {
-  system("avconv -i \Q$in\E -an $skip -r 1 -vframes 1 -y \Q$out-\%d.png\E 2>/dev/null");
+  system("ffmpeg -i \Q$in\E -an $skip -r 1 -vframes 1 -y \Q$out-\%d.png\E 2>/dev/null");
 }
