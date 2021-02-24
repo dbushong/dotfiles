@@ -6,10 +6,11 @@
 	ls = ls-files
 	graph = log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit --date=relative
 	ppush = !git pull && git push
-	close-pr = !prbranch=`git rev-parse --abbrev-ref HEAD` && git checkout master && git pull && git branch -d $prbranch && git remote prune origin
         clean-prs = !git pull && git remote prune origin && git branch --merged | fgrep -v '*' | grep -v master | grep -v develop | xargs -n 1 git branch -d
         icdiff = !git difftool --no-prompt --extcmd icdiff "$@"
         amend = commit -a --amend --no-edit
+        add-fork = "!f() { git remote add $1 $(git remote get-url origin | perl -pe 's,(?<=:)([^/]+),'$1,) && git fetch $1; }; f"
+        locate = !git ls-files "**/$1"
 [color]
 	ui = true
 [color "grep"]
