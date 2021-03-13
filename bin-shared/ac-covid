@@ -2,13 +2,14 @@
 
 set -Eeuo pipefail
 
-# old one
-# curl -sS 'https://services3.arcgis.com/1iDJcsklY3l3KIjE/arcgis/rest/services/AC_dates2/FeatureServer/0/query?f=json&where=1%3D1&returnGeometry=false&spatialRel=esriSpatialRelIntersects&outFields=*&orderByFields=Date%20asc&resultOffset=0&resultRecordCount=32000&resultType=standard&cacheHint=true' \
-#| fx '.features.map(({ attributes: a }) => `${new Date(a.Date).toISOString()}\t${a.AC_CumulCases}`).slice(-40).join("\n")'
-
 curl -fsS \
   -H 'Accept: application/json' \
   -H 'Content-Type: application/json' \
+  -H 'X-PowerBI-ResourceKey: 3a22cb23-cf1a-436e-9a33-511d2edc29f3' \
+  -H 'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.192 Safari/537.36' \
+  -H 'ActivityId: eb4412c5-f0f8-9fca-3e0f-18c2642f802e' \
+  -H 'Origin: https://app.powerbigov.us' \
+  -H 'Referer: https://app.powerbigov.us/' \
   --compressed \
   --data-binary '{"version":"1.0.0","queries":[{"Query":{"Commands":[{"SemanticQueryDataShapeCommand":{"Query":{"Version":2,"From":[{"Name":"v","Entity":"V_Combined_data","Type":0}],"Select":[{"Column":{"Expression":{"SourceRef":{"Source":"v"}},"Property":"DtCreate"},"Name":"V_Combined_data.DtCreate"},{"Measure":{"Expression":{"SourceRef":{"Source":"v"}},"Property":"Cumulative Cases"},"Name":"V_Combined_data.Cumulative Cases"}]},"Binding":{"Primary":{"Groupings":[{"Projections":[0,1]}]},"DataReduction":{"DataVolume":4,"Primary":{"BinnedLineSample":{}}},"Version":1}}}]},"CacheKey":"{\"Commands\":[{\"SemanticQueryDataShapeCommand\":{\"Query\":{\"Version\":2,\"From\":[{\"Name\":\"v\",\"Entity\":\"V_Combined_data\",\"Type\":0}],\"Select\":[{\"Column\":{\"Expression\":{\"SourceRef\":{\"Source\":\"v\"}},\"Property\":\"DtCreate\"},\"Name\":\"V_Combined_data.DtCreate\"},{\"Measure\":{\"Expression\":{\"SourceRef\":{\"Source\":\"v\"}},\"Property\":\"Cumulative Cases\"},\"Name\":\"V_Combined_data.Cumulative Cases\"}]},\"Binding\":{\"Primary\":{\"Groupings\":[{\"Projections\":[0,1]}]},\"DataReduction\":{\"DataVolume\":4,\"Primary\":{\"BinnedLineSample\":{}}},\"Version\":1}}}]}","QueryId":"","ApplicationContext":{"DatasetId":"d4923c43-5fc4-444c-aa95-8ecf0d15f562","Sources":[{"ReportId":"5080f005-6411-4a22-88b0-ff13c00d140f"}]}}],"cancelQueries":[],"modelId":295360}' \
   'https://wabi-us-gov-iowa-api.analysis.usgovcloudapi.net/public/reports/querydata?synchronous=true' \
