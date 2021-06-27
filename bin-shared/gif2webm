@@ -25,11 +25,11 @@ shift $((OPTIND-1))
 
 [ $# -gt 0 ] || usage
 
-for file in $*; do
+for file in "$@"; do
   pattern="$file-$PROG-%05d.png"
   out=`echo "$file" | sed 's/\.gif/.webm/i'`
   echo "$file -> $out"
   convert "$file" "$pattern"
-  avconv -i "$pattern" -b 768k "$out"
+  ffmpeg -i "$pattern" -b 768k "$out"
   rm "$file-$PROG-"*.png
 done
