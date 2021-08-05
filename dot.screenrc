@@ -2,7 +2,6 @@ startup_message off
 term screen
 defscrollback 10000
 defencoding utf8
-deflogin off
 defutf8 on
 escape ^Oo
 vbell off
