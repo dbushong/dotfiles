@@ -12,12 +12,6 @@ let g:ctrlp_prompt_mappings = {
   \ }
 
 
-" extra libraries
-try
-  runtime ftplugin/man.vim
-catch /E484:/
-endtry
-
 " syntax related settings
 syntax on
 syntax sync minlines=200
