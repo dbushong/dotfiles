@@ -1,0 +1,40 @@
+#!/bin/bash -e
+
+PROG="${0##*/}"
+
+waitSecs=15
+
+usage () {
+  cat <<EOF >&2
+usage: $PROG [-s secs] some-npm-pkg
+       -s: how many secs to wait between checks (default $waitSecs)
+EOF
+  exit 1
+}
+
+
+while getopts "hs:" opt; do
+  case "$opt" in
+    h) usage ;;
+    s) waitSecs=$OPTARG ;;
+    *) echo 'internal error' >&2 ; exit 1 ;;
+  esac
+done
+shift $((OPTIND-1))
+
+[ $# -eq 1 ] || usage
+
+pkg="$1"
+curVersion=`npm v "$pkg" version`
+
+echo -n "$pkg@$curVersion"
+
+while true; do
+  sleep $waitSecs
+  newVersion=`npm v "$pkg" version`
+  if [ $curVersion != $newVersion ]; then
+    echo -e "\n+ $newVersion"
+    exit 0
+  fi
+  echo -n .
+done
