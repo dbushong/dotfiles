@@ -1,4 +1,4 @@
-#!/bin/sh -e
+#!/bin/bash -e
 #
 # beep - beeps <argument> seconds from now
 #
@@ -14,4 +14,4 @@ if [ $# -eq 1 ]; then
 fi
 
 sleep "$SECS"
-echo -n ''
+echo -ne "\a"
