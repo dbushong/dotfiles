@@ -7,11 +7,10 @@ waitSecs=15
 usage () {
   cat <<EOF >&2
 usage: $PROG [-s secs] some-npm-pkg
-       -s: how many secs to wait between checks (default $waitSecs)
+       -s: how many secs to wait between checks (default: $waitSecs)
 EOF
   exit 1
 }
-
 
 while getopts "hs:" opt; do
   case "$opt" in
@@ -24,16 +23,18 @@ shift $((OPTIND-1))
 
 [ $# -eq 1 ] || usage
 
+startSecs=`date '+%s'`
 pkg="$1"
 curVersion=`npm v "$pkg" version`
 
-echo -n "$pkg@$curVersion"
+echo -n "$curVersion..."
 
 while true; do
   sleep $waitSecs
   newVersion=`npm v "$pkg" version`
   if [ $curVersion != $newVersion ]; then
-    echo -e "\n+ $newVersion"
+    endSecs=`date '+%s'`
+    echo "$newVersion ($(($endSecs - $startSecs))s)"
     exit 0
   fi
   echo -n .
