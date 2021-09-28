@@ -6,8 +6,10 @@ waitSecs=15
 
 usage () {
   cat <<EOF >&2
-usage: $PROG [-s secs] some-npm-pkg
+usage: $PROG [-s secs] [some-npm-pkg]
        -s: how many secs to wait between checks (default: $waitSecs)
+       some-npm-pkg: which to wait for (defaults to
+                     ./package.json's name property; requires jq)
 EOF
   exit 1
 }
