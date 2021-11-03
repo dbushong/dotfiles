@@ -23,16 +23,17 @@ while getopts "hs:" opt; do
 done
 shift $((OPTIND-1))
 
+startSecs=`date '+%s'`
+
 if [ $# -eq 0 ]; then
   pkg=`jq -r .name package.json`
+  curVersion=`jq -r .version package.json`
 elif [ $# -eq 1 ]; then
   pkg="$1"
+  curVersion=`npm v "$pkg" version`
 else
   usage
 fi
-
-startSecs=`date '+%s'`
-curVersion=`npm v "$pkg" version`
 
 echo -n "$curVersion..."
 
