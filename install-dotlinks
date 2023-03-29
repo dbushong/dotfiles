@@ -18,5 +18,16 @@ for file in cshrc zshrc zshenv vimrc; do
   fi
 done
 
+if [ -L ../.gitconfig ]; then
+  rm ../.gitconfig
+fi
+if [ ! -f ../.gitconfig ]; then
+  echo "Creating skeletal ~/.gitconfig"
+  cat > ../.gitconfig <<EOF
+[include]
+  path = .gitconfig.base
+EOF
+fi
+
 [ -d ../bin        ] || mkdir ../bin
 [ -d ../bin/shared ] || ln -s ../.dotfiles/bin-shared ../bin/shared
