@@ -1,0 +1,72 @@
+#!/usr/bin/env python
+
+import json
+from os import environ
+from netrc import netrc
+import re
+from subprocess import run
+import sys
+import typing_extensions as tx
+# import urllib.request
+
+JIRA_HOST=environ.get('JIRA_HOST')
+
+def usage() -> tx.Never:
+    sys.stderr.write("""\
+For `git branch-list-jira` work properly you need to:
+
+1. Set your JIRA_HOST environment variable to the hostname you use for JIRA,
+   e.g. mycompanyname.atlassian.net
+2. Ensure that you have a section in your ~/.netrc file that looks like:
+
+   machine mycompanyname.atlassian.net
+   login myusername@mycompany.com
+   password your-jira-api-token
+
+   You can create an API token here:
+   https://id.atlassian.com/manage-profile/security/api-tokens
+
+   Make sure your ~/.netrc is mode 0600
+"""
+    )
+    sys.exit(1)
+
+try:
+    url_base = f'https://{JIRA_HOST}/rest/api/3'
+    _login, _, _api_token = netrc().hosts[JIRA_HOST]
+except:
+    usage()
+
+# doesn't seem to work for some reason
+# password_mgr = urllib.request.HTTPPasswordMgrWithDefaultRealm()
+# password_mgr.add_password(None, url_base + '/', login, api_token)
+# handler = urllib.request.HTTPBasicAuthHandler(password_mgr)
+# opener = urllib.request.build_opener(handler)
+
+git_branch = run(
+    ['git', '-c', 'color.ui=always', 'branch'],
+    capture_output=True,
+    text=True
+).stdout
+
+def add_descr(m: 're.Match[str]') -> str:
+    res = json.loads(
+        # opener.open(f'{url_base}/issue/{m.group("issue")}').read()
+        run(
+            ['curl', '--netrc', f'{url_base}/issue/{m.group("issue")}'],
+            capture_output=True,
+        ).stdout
+    )
+    return f"{m.group('prefix')}{m.group('issue')}{m.group('suffix')}  \x1b[2m{res['fields']['summary']}\x1b[m"
+
+try:
+    git_branch = re.sub(
+        r"^(?P<prefix>\*?\s+(?:\x1b\[\d*m)?)(?P<issue>[A-Z]+-\d+)(?P<suffix>\S+(?:\x1b\[m)?\s*)$",
+        add_descr,
+        git_branch,
+        flags=re.MULTILINE,
+    )
+except Exception as e:
+    sys.stderr.write(repr(e) + '\n')
+
+sys.stdout.write(git_branch)
