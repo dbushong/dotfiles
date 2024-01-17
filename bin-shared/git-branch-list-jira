@@ -7,6 +7,7 @@ from netrc import netrc
 import re
 from subprocess import run
 import sys
+import typing as t
 
 
 def check_configs():
@@ -42,28 +43,42 @@ def run_git_branch():
     ).stdout
 
 
-def add_descr(url_base: str, m: "re.Match[str]") -> str:
-    res = json.loads(
-        run(
-            ["curl", "--netrc", f'{url_base}/issue/{m.group("issue")}'],
-            capture_output=True,
-        ).stdout
-    )
-    return f"{m.group('prefix')}{m.group('issue')}{m.group('suffix')}  \x1b[2m{res['fields']['summary']}\x1b[m"
+def add_descr(issues: t.Dict[str, str], m: "re.Match[str]") -> str:
+    return f"{m.group('prefix')}{m.group('issue')}{m.group('suffix')}  \x1b[2m{issues[m.group('issue')]}\x1b[m"
 
+
+def fetch_issue_descrs(url_base: str, issue_ids: t.List[str]) -> t.Dict[str, str]:
+    issues: t.Dict[str, str] = {}
+    for id in issue_ids:
+        res = json.loads(
+            run(
+                ["curl", "--netrc", f"{url_base}/issue/{id}"],
+                capture_output=True,
+            ).stdout
+        )
+        issues[id] = res["fields"]["summary"]
+    return issues
+
+
+branch_list_line_re = re.compile(
+    r"^(?P<prefix>\*?\s+(?:\x1b\[\d*m)?)(?P<issue>[A-Z]+-\d+)(?P<suffix>\S+(?:\x1b\[m)?\s*)$",
+    flags=re.MULTILINE,
+)
 
 if __name__ == "__main__":
     git_branch = run_git_branch()
 
     try:
         url_base = check_configs()
-        git_branch = re.sub(
-            r"^(?P<prefix>\*?\s+(?:\x1b\[\d*m)?)(?P<issue>[A-Z]+-\d+)(?P<suffix>\S+(?:\x1b\[m)?\s*)$",
-            partial(add_descr, url_base),
-            git_branch,
-            flags=re.MULTILINE,
+        issues = fetch_issue_descrs(
+            url_base, [i for _, i, _ in re.findall(branch_list_line_re, git_branch)]
         )
-    except Exception as e:
-        sys.stderr.write(repr(e) + "\n")
+        if issues:
+            git_branch = re.sub(
+                branch_list_line_re,
+                partial(add_descr, issues),
+                git_branch,
+            )
+    finally:
+        sys.stdout.write(git_branch)
 
-    sys.stdout.write(git_branch)
