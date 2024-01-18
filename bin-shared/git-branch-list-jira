@@ -47,21 +47,41 @@ def add_descr(issues: t.Dict[str, str], m: "re.Match[str]") -> str:
     return f"{m.group('prefix')}{m.group('issue')}{m.group('suffix')}  \x1b[2m{issues[m.group('issue')]}\x1b[m"
 
 
-def fetch_issue_descrs(url_base: str, issue_ids: t.List[str]) -> t.Dict[str, str]:
+def fetch_issue_descrs(
+    url_base: str,
+    branch_matches: 't.Iterable[re.Match[str]]',
+) -> t.Dict[str, str]:
     issues: t.Dict[str, str] = {}
-    for id in issue_ids:
-        res = json.loads(
-            run(
-                ["curl", "--netrc", f"{url_base}/issue/{id}"],
-                capture_output=True,
-            ).stdout
-        )
-        issues[id] = res["fields"]["summary"]
+    # would like to fetch these with curl --parallel, but it seems to
+    # occasionally mix the results together on stdout...?
+    for m in branch_matches:
+        # use git branch description for caching
+        issue = m.group('issue')
+        config_key = f'branch.{m.group("branch")}.description'
+
+        descr = run(
+            ['git', 'config', config_key],
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+
+        if not descr:
+            res = json.loads(
+                run(
+                    ["curl", "--netrc", f"{url_base}/issue/{issue}"],
+                    capture_output=True,
+                ).stdout
+            )
+            descr = res["fields"]["summary"]
+            run(['git', 'config', config_key, descr])
+
+        issues[issue] = descr
+
     return issues
 
 
 branch_list_line_re = re.compile(
-    r"^(?P<prefix>\*?\s+(?:\x1b\[\d*m)?)(?P<issue>[A-Z]+-\d+)(?P<suffix>\S+(?:\x1b\[m)?\s*)$",
+    r"^(?P<prefix>\*?\s+(?:\x1b\[\d*m)?)(?P<branch>(?P<issue>[A-Z]+-\d+)\S*)(?P<suffix>(?:\x1b\[m)?\s*)$",
     flags=re.MULTILINE,
 )
 
@@ -71,7 +91,7 @@ if __name__ == "__main__":
     try:
         url_base = check_configs()
         issues = fetch_issue_descrs(
-            url_base, [i for _, i, _ in re.findall(branch_list_line_re, git_branch)]
+            url_base, re.finditer(branch_list_line_re, git_branch)
         )
         if issues:
             git_branch = re.sub(
