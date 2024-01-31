@@ -57,7 +57,10 @@ def run_git_branch():
 
 
 def add_descr(issues: t.Dict[str, str], m: "re.Match[str]") -> str:
-    return f"{m.group('prefix')}{m.group('issue')}{m.group('suffix')}  \x1b[2m{issues[m.group('issue')]}\x1b[m"
+    return (
+        f"{m.group('prefix')}{m.group('branch')}{m.group('suffix')}  "
+        f"\x1b[2m{issues[m.group('issue')]}\x1b[m"
+    )
 
 
 def fetch_issue_descrs(
@@ -98,7 +101,11 @@ def fetch_issue_descrs(
 
 
 branch_list_line_re = re.compile(
-    r"^(?P<prefix>\*?\s+(?:\x1b\[\d*m)?)(?P<branch>(?P<issue>[A-Z]+-\d+)[\w-]*)(?P<suffix>(?:\x1b\[m)?\s*)$",
+    (
+        r"^(?P<prefix>\*?\s+(?:\x1b\[\d*m)?)"
+        r"(?P<branch>(?P<issue>[A-Z]+-\d+)[\w-]*)"
+        r"(?P<suffix>(?:\x1b\[m)?\s*)$"
+    ),
     flags=re.MULTILINE,
 )
 
