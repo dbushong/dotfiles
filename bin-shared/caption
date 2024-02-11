@@ -1,0 +1,35 @@
+#!/bin/bash -e
+
+PROG="${0##*/}"
+
+usage () {
+  cat <<EOF >&2
+usage: $PROG [options] img txtfile
+EOF
+  exit 1
+}
+
+while getopts "h" opt; do
+  case "$opt" in
+    h) usage ;;
+#   f) FOO="$OPTARG" ;;
+    *) echo 'internal error' >&2 ; exit 1 ;;
+  esac
+done
+shift $((OPTIND-1))
+
+[ $# -eq 2 ] || usage
+
+IMG="$1"
+TXT="$2"
+OUT=`echo "$IMG" | sed 's/\(.*\)\./\1-captioned./'`
+
+WIDTH=`identify -format '%w' "$IMG"`
+convert "$IMG" \
+  -background black \
+  -fill white \
+  -size ${WIDTH}x150 \
+  "caption:@$TXT" \
+  -gravity Center \
+  -append \
+  "$OUT"
