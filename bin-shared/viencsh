@@ -36,7 +36,7 @@ trap cleanup INT
 
 if [ -f $FILE ]; then
   awk 'NR==1,/#START/{next}/^EOF$/,NR==0{next}{print}' $FILE \
-    | base64-decode | openssl enc -d -bf-cbc > $TMP
+    | base64-decode | openssl bf-cbc -d -md md5 -provider legacy -provider default > $TMP
 else
   touch $TMP
 fi
@@ -45,12 +45,12 @@ HEADER=$(cat <<EOS
 #!/bin/bash -e
 set -o pipefail
 
-base64-decode <<EOF | openssl enc -d -bf-cbc | bash -e #START
+base64-decode <<EOF | openssl bf-cbc -d -md md5 -provider legacy -provider default | bash -e #START
 EOS
 )
 
 if ${EDITOR:-editor} $TMP; then
-  PAYLOAD=`openssl enc -e -bf-cbc -in $TMP | base64`
+  PAYLOAD=`openssl bf-cbc -e -in $TMP -provider legacy -provider default | base64`
   if ! [ -z "$PAYLOAD" ]; then
     (echo "$HEADER" ; echo "$PAYLOAD" ; echo EOF) > $FILE
     chmod a+x $FILE

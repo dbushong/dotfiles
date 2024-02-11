@@ -18,4 +18,4 @@ EOU
 
 usage() unless $opt{o} && @ARGV;
 
-exec('avconv', '-i', 'concat:' . join('|', @ARGV), '-codec', 'copy', $opt{o});
+exec('ffmpeg', '-i', 'concat:' . join('|', @ARGV), '-codec', 'copy', $opt{o});

@@ -30,6 +30,6 @@ for file in "$@"; do
   out=`echo "$file" | sed 's/\.gif/.webm/i'`
   echo "$file -> $out"
   convert "$file" "$pattern"
-  ffmpeg -i "$pattern" -b 768k "$out"
+  ffmpeg -i "$pattern" -b 768k -r 5 "$out"
   rm "$file-$PROG-"*.png
 done
