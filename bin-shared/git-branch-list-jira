@@ -1,0 +1,132 @@
+#!/usr/bin/env python
+
+"""git branch-list-jira
+
+Script to perform the equivalent of ``git branch`` to list branches,
+but, for any branches whose names start with what looks like a JIRA
+issue id (i.e. ABCD-1234), appends the issue summary to the list.
+
+This may be used as a passthrough replacement for ``git branch`` - if invoked
+with any arguments, it will not perform its annotating behavior.
+
+Results are cached as git branch descriptions - to edit or clear them,
+use ``git branch --edit-description`` or just manually edit ``.git/config``
+"""
+
+from functools import partial
+import json
+from os import environ, execvp
+from netrc import netrc
+import re
+from subprocess import run
+import sys
+import typing as t
+
+
+def check_configs():
+    try:
+        host = environ.get("JIRA_HOST", "<missing>")
+        netrc().hosts[host]
+        return f"https://{host}/rest/api/3"
+    except Exception:
+        sys.stderr.write(
+            """\
+    For `git branch-list-jira` work properly you need to:
+
+    1. Set your JIRA_HOST environment variable to the hostname you use for JIRA,
+    e.g. mycompanyname.atlassian.net
+    2. Ensure that you have a section in your ~/.netrc file that looks like:
+
+    machine mycompanyname.atlassian.net
+    login myusername@mycompany.com
+    password your-jira-api-token
+
+    You can create an API token here:
+    https://id.atlassian.com/manage-profile/security/api-tokens
+
+    Make sure your ~/.netrc is mode 0600
+    """
+        )
+        sys.exit(1)
+
+
+def run_git_branch():
+    return run(
+        ["git", "-c", "color.ui=always", "branch"], capture_output=True, text=True
+    ).stdout
+
+
+def add_descr(issues: t.Dict[str, str], m: "re.Match[str]") -> str:
+    return (
+        f"{m.group('prefix')}{m.group('branch')}{m.group('suffix')}  "
+        f"\x1b[2m{issues[m.group('issue')]}\x1b[m"
+    )
+
+
+def fetch_issue_descrs(
+    url_base: str,
+    branch_matches: 't.Iterable[re.Match[str]]',
+) -> t.Dict[str, str]:
+    issues: t.Dict[str, str] = {}
+    # would like to fetch these with curl --parallel, but it seems to
+    # occasionally mix the results together on stdout...?
+    for m in branch_matches:
+        # use git branch description for caching
+        issue = m.group('issue')
+        config_key = f'branch.{m.group("branch")}.description'
+
+        descr = run(
+            ['git', 'config', config_key],
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+
+        if not descr:
+            try:
+                res = json.loads(
+                    run(
+                        ["curl", "--netrc", f"{url_base}/issue/{issue}"],
+                        capture_output=True,
+                    ).stdout
+                )
+                descr = res["fields"]["summary"]
+            except Exception as e:
+                sys.stderr.write(f'{e}\n')
+                descr = '<could not load summary>'
+            run(['git', 'config', config_key, descr])
+
+        issues[issue] = descr
+
+    return issues
+
+
+branch_list_line_re = re.compile(
+    (
+        r"^(?P<prefix>\*?\s+(?:\x1b\[\d*m)?)"
+        r"(?P<branch>(?P<issue>[A-Z]+-\d+)[\w-]*)"
+        r"(?P<suffix>(?:\x1b\[m)?\s*)$"
+    ),
+    flags=re.MULTILINE,
+)
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        # passthrough behavior if we're invoked with other arguments
+        execvp('git', ['git', 'branch', *sys.argv[1:]])
+
+    git_branch = run_git_branch()
+
+    try:
+        url_base = check_configs()
+        issues = fetch_issue_descrs(
+            url_base, re.finditer(branch_list_line_re, git_branch)
+        )
+        if issues:
+            git_branch = re.sub(
+                branch_list_line_re,
+                partial(add_descr, issues),
+                git_branch,
+            )
+    finally:
+        sys.stdout.write(git_branch)
+

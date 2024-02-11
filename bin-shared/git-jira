@@ -1,0 +1,23 @@
+#!/usr/bin/env python
+# opens browser to JIRA issue at start of current branch name
+
+from os import environ
+import re
+from subprocess import run
+import sys
+
+JIRA_HOST = environ.get('JIRA_HOST')
+
+if not JIRA_HOST:
+    sys.stderr.write('Set JIRA_HOST environment variable to <yourcompany>.atlassian.net\n')
+    sys.exit(1)
+
+git_output = run(['git', 'symbolic-ref', 'HEAD'], capture_output=True, text=True)
+
+branch = git_output.stdout.strip().split('/')[-1]
+
+if (m := re.match(r"[A-Z]+-\d+", branch)):
+    url = f"https://{JIRA_HOST}/browse/{m[0]}"
+    run(['open', url])
+else:
+    print(f'Current branch "{branch}" does not look like a JIRA issue')

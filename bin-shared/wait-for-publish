@@ -6,8 +6,10 @@ waitSecs=15
 
 usage () {
   cat <<EOF >&2
-usage: $PROG [-s secs] some-npm-pkg
+usage: $PROG [-s secs] [some-npm-pkg]
        -s: how many secs to wait between checks (default: $waitSecs)
+       some-npm-pkg: which to wait for (defaults to
+                     ./package.json's name property; requires jq)
 EOF
   exit 1
 }
@@ -21,11 +23,17 @@ while getopts "hs:" opt; do
 done
 shift $((OPTIND-1))
 
-[ $# -eq 1 ] || usage
-
 startSecs=`date '+%s'`
-pkg="$1"
-curVersion=`npm v "$pkg" version`
+
+if [ $# -eq 0 ]; then
+  pkg=`jq -r .name package.json`
+  curVersion=`jq -r .version package.json`
+elif [ $# -eq 1 ]; then
+  pkg="$1"
+  curVersion=`npm v "$pkg" version`
+else
+  usage
+fi
 
 echo -n "$curVersion..."
 
