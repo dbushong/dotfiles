@@ -52,7 +52,9 @@ def check_configs():
 
 def run_git_branch():
     return run(
-        ["git", "-c", "color.ui=always", "branch"], capture_output=True, text=True
+        ["git", "-c", "color.ui=always", "branch"],
+        capture_output=True,
+        text=True,
     ).stdout
 
 
@@ -103,8 +105,8 @@ def fetch_issue_descrs(
 branch_list_line_re = re.compile(
     (
         r"^(?P<prefix>\*?\s+(?:\x1b\[\d*m)?)"
-        r"(?P<branch>(?P<issue>[A-Z]+-\d+)[\w-]*)"
-        r"(?P<suffix>(?:\x1b\[m)?\s*)$"
+        r"(?P<branch>(?P<issue>[A-Za-z]+-\d+\b)[\w-]*)"
+        r"(?P<suffix>(?:\x1b\[m)?\s*?)$"
     ),
     flags=re.MULTILINE,
 )
@@ -129,4 +131,3 @@ if __name__ == "__main__":
             )
     finally:
         sys.stdout.write(git_branch)
-
