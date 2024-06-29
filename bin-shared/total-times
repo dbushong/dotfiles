@@ -1,0 +1,20 @@
+#!/usr/bin/env python3
+#
+# total-times - find hh:mm:ss sections in input and report total time
+#
+
+import datetime as dt
+import re
+import sys
+
+PAT = re.compile(r"\b(\d\d):(\d\d):(\d\d(?:\.\d+)?)\b")
+
+total = 0.0
+for line in sys.stdin:
+  m = PAT.search(line)
+  if not m:
+    continue
+  h, m, s = map(float, m.groups())
+  total += h * 3600 + m * 60 + s
+
+print(dt.timedelta(seconds=total))
