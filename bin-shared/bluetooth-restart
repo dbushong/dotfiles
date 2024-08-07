@@ -1,0 +1,5 @@
+#!/bin/sh -e
+
+blueutil --power 0
+sleep 3
+blueutil --power 1
