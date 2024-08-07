@@ -1,0 +1,49 @@
+#!/usr/bin/env python
+#
+# waits for a given python pkg to reach a different (or specific) version
+#
+
+import argparse
+import re
+import subprocess
+import sys
+from time import sleep
+
+SLEEP_TIME=30
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("pkg", help="the python pkg to check version for")
+    parser.add_argument("specific_version", help="a specific version to look for (not just any newer one)", nargs="?")
+    args = parser.parse_args()
+
+    pkg = args.pkg
+    specific_version = args.specific_version
+    prev_version = None if specific_version else get_current_version(pkg)
+
+    if specific_version:
+        print(f"Waiting for {pkg} to have a version {specific_version}", file=sys.stderr)
+    elif prev_version:
+        print(f"Waiting for {pkg} to have a newer version than current ({prev_version})", file=sys.stderr)
+
+    while True:
+        cur_version = get_current_version(pkg)
+
+        if (specific_version and cur_version == specific_version) or (prev_version and cur_version != prev_version):
+            print(cur_version)
+            return
+
+        sleep(SLEEP_TIME)
+
+
+def get_current_version(pkg: str):
+    res = subprocess.run(["pip", "index", "versions", pkg], capture_output=True, encoding="utf8")
+    res.check_returncode()
+    m = re.search(r"^.+\((?P<version>.+)\)", res.stdout)
+    if not m:
+        raise Exception(f"Failed to find current version in `pip index versions {pkg}` output:\n{res.stdout}")
+    return m.group("version")
+
+
+if __name__ == "__main__":
+    main()
