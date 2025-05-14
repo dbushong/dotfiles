@@ -1,5 +1,9 @@
 #!/bin/sh
 
-env | egrep '^SSH_' | sed -e 's/=/="/' -e 's/$/"/' -e 's/^/export /' \
-  > $HOME/.ssh/screen-env
-exec screen -D -R
+if ! tmux has-session 2>/dev/null; then
+  echo "Be careful!  New screen tonight."
+  sleep 1
+  tmux new-session -d
+fi
+
+tmux attach-session -d
