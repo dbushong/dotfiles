@@ -7,14 +7,23 @@ import datetime as dt
 import re
 import sys
 
-PAT = re.compile(r"\b(\d\d):(\d\d):(\d\d(?:\.\d+)?)\b")
+HMS_PAT = re.compile(r"\b(\d\d):(\d\d):(\d\d(?:\.\d+)?)\b")
+S_PAT = re.compile(r"\b(?P<n>\d+)(?P<unit>[mμn]?s)\b")
 
 total = 0.0
 for line in sys.stdin:
-  m = PAT.search(line)
-  if not m:
-    continue
-  h, m, s = map(float, m.groups())
-  total += h * 3600 + m * 60 + s
+  if m := HMS_PAT.search(line):
+    h, m, s = map(float, m.groups())
+    total += h * 3600 + m * 60 + s
+  elif m := S_PAT.search(line):
+    n = int(m.group('n'))
+    unit = m.group('unit')
+    if unit == 'ms':
+      n /= 1_000
+    elif unit == 'μs':
+      n /= 1_000_000
+    elif unit == 'ns':
+      n /= 1_000_000_000
+    total += n
 
 print(dt.timedelta(seconds=total))
