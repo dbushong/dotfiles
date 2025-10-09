@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env -S uv run --script --no-project
 #
 # waits for a given python pkg to reach a different (or specific) version
 #
@@ -37,7 +37,7 @@ def main():
 
 
 def get_current_version(pkg: str):
-    res = subprocess.run(["pip", "index", "versions", pkg], capture_output=True, encoding="utf8")
+    res = subprocess.run(["uvx", "pip", "index", "versions", pkg], capture_output=True, encoding="utf8")
     res.check_returncode()
     m = re.search(r"^.+\((?P<version>.+)\)", res.stdout)
     if not m:
