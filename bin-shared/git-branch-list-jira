@@ -1,4 +1,5 @@
 #!/usr/bin/env -S uv run --script --no-project
+# vim: ft=python
 
 """git branch-list-jira
 
@@ -51,8 +52,9 @@ def check_configs():
 
 
 def run_git_branch():
+    town = ["town"] if run(["git", "town"], capture_output=True).returncode == 0 else []
     return run(
-        ["git", "-c", "color.ui=always", "branch"],
+        ["git", "-c", "color.ui=always", *town, "branch"],
         capture_output=True,
         text=True,
     ).stdout
@@ -104,9 +106,9 @@ def fetch_issue_descrs(
 
 branch_list_line_re = re.compile(
     (
-        r"^(?P<prefix>\*?\s+(?:\x1b\[\d*m)?)"
+        r"^(?P<prefix>(?:\x1b\[\d*m)?\*?\s+(?:\x1b\[\d*m)?)"
         r"(?P<branch>(?P<issue>[A-Za-z]+-\d+\b)[\w-]*)"
-        r"(?P<suffix>(?:\x1b\[m)?\s*?)$"
+        r"(?P<suffix>(?:\x1b\[0?m)?\s*?)$"
     ),
     flags=re.MULTILINE,
 )
