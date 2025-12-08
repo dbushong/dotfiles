@@ -35,6 +35,7 @@ let g:PreserveNoEOL = 1
 
 " general settings
 set modeline
+set modelines=3
 set noshowmode
 set noruler
 set nohlsearch
