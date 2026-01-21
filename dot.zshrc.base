@@ -44,28 +44,8 @@ ql() { qlmanage -p "$1" 2>&1 >/dev/null }
 #  compdef hub=git
 #fi
 
-# precmd func: git prompt stuffs
-function set_git_prompt() {
-  local br _left _branch _right
-
-  _left='%B%m%b '
-  _right='%~ %B[%T]%b '
-  
-  br=$(git symbolic-ref HEAD 2>&1)
-
-  if [ "$br" = 'fatal: ref HEAD is not a symbolic ref' ]; then
-    _branch="%UNOBRANCH%u "
-  else
-    br=${br#refs/heads/}
-    br=${br:#fatal*}
-    [ -n "$br" -a "$br" != master ] && _branch="%U$br%u "
-  fi
-
-  export PROMPT="$_left$_branch$_right"
-}
-
 source ~/.git-prompt.sh
-function set_git_prompt2() {
+function set_git_prompt() {
   GIT_PS1_SHOWCOLORHINTS=true
   __git_ps1 "%B%m%b" " %~ %B[%T]%b " " %s"
 }
@@ -76,7 +56,7 @@ function source_screen_env {
 }
 
 # precmd array
-precmd_functions=(set_git_prompt2 source_screen_env)
+precmd_functions=(set_git_prompt source_screen_env)
 
 # Completion
 autoload -U compinit
