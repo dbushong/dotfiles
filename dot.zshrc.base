@@ -17,7 +17,7 @@ setopt append_history beep extended_glob no_match notify auto_pushd \
 
 # Commands
 bindkey -e
-stty erase "^H"
+stty erase "^?"
 bindkey '\e[A' history-beginning-search-backward
 bindkey '\C-P' up-line-or-history
 
